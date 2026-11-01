@@ -60,6 +60,30 @@ class ExtractTests(unittest.TestCase):
         self.assertEqual(split.alisan, 1)
         self.assertEqual(split.alisan_carrier_total, 3)
 
+    def test_vehicle_split_ignores_ravago_records_from_other_carriers(self) -> None:
+        module = extract_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_path = Path(temp_dir) / "vehicles.xlsx"
+            headers = [f"Field {index}" for index in range(1, 29)]
+            headers[1] = "Kayıt Tarihi"
+            headers[17] = "Nakliyeci"
+            headers[20] = "Firma Adı"
+            make_vehicle_book(
+                input_path,
+                headers,
+                [
+                    [None, "2026-09-01", *([None] * 15), "ALIŞAN LOJİSTİK A.Ş.", None, None, "RAVAGO"],
+                    [None, "2026-09-02", *([None] * 15), "BAŞKA NAKLİYECİ", None, None, "RAVAGO"],
+                    [None, "2026-09-03", *([None] * 15), "ALIŞAN LOJİSTİK A.Ş.", None, None, "BAŞKA FİRMA"],
+                ],
+            )
+
+            split = module.extract_vehicle_split(input_path)
+
+        self.assertEqual(split.ravago, 1)
+        self.assertEqual(split.alisan, 1)
+        self.assertEqual(split.alisan_carrier_total, 2)
+
     def test_vehicle_split_rejects_missing_company_column(self) -> None:
         module = extract_module()
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -5,7 +5,7 @@ import unicodedata
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 
 from openpyxl import load_workbook
 
@@ -29,6 +29,8 @@ class PregateReport:
     year_comparison: tuple[tuple[str, int, int], ...] = field(default_factory=tuple)
     rejection_comparison: tuple[tuple[str, int, int], ...] = field(default_factory=tuple)
     rejection_reasons: tuple[tuple[str, int], ...] = field(default_factory=tuple)
+    rejection_reason_headers: tuple[str, ...] = field(default_factory=tuple)
+    carrier_rejection_rows: tuple[tuple[Any, ...], ...] = field(default_factory=tuple)
     carriers: tuple[tuple[str, int, int], ...] = field(default_factory=tuple)
     empty_reasons: tuple[tuple[str, int], ...] = field(default_factory=tuple)
     empty_companies: tuple[tuple[str, int], ...] = field(default_factory=tuple)
@@ -228,6 +230,7 @@ def extract_pregate_report(path: str | Path) -> PregateReport:
         reason_headers = [str(reason_sheet.cell(4, column).value or "").strip() for column in reason_columns]
         reason_totals: tuple[tuple[str, int], ...] = ()
         carriers: list[tuple[str, int, int]] = []
+        carrier_rejection_rows: list[tuple[Any, ...]] = []
         for row in reason_sheet.iter_rows(min_row=5, max_col=registered_column, values_only=True):
             label = row[1]
             if label in (None, ""):
@@ -242,7 +245,10 @@ def extract_pregate_report(path: str | Path) -> PregateReport:
             rejected = _optional_int(row[rejected_column - 1])
             registered = _optional_int(row[registered_column - 1])
             if rejected is not None and registered is not None:
-                carriers.append((str(label).strip(), rejected, registered))
+                carrier_name = str(label).strip()
+                reason_values = tuple(_optional_int(row[column - 1]) or 0 for column in reason_columns)
+                carriers.append((carrier_name, rejected, registered))
+                carrier_rejection_rows.append((carrier_name, *reason_values, rejected, registered))
 
         def read_count_rows(sheet_name: str, value_column: int) -> tuple[tuple[str, int], ...]:
             count_sheet = workbook[sheet_name]
@@ -323,6 +329,8 @@ def extract_pregate_report(path: str | Path) -> PregateReport:
             year_comparison=year_comparison,
             rejection_comparison=rejection_comparison,
             rejection_reasons=reason_totals,
+            rejection_reason_headers=tuple(reason_headers),
+            carrier_rejection_rows=tuple(carrier_rejection_rows),
             carriers=tuple(carriers),
             empty_reasons=read_count_rows("Sheet6", 4),
             empty_companies=read_count_rows("Sheet7", 3),
@@ -401,10 +409,10 @@ def extract_vehicle_split(path: str | Path) -> VehicleSplit:
             is_alisan_carrier = "ALISAN" in carrier
             if is_alisan_carrier:
                 alisan_carrier_total += 1
-            if is_ravago:
-                ravago += 1
-            elif is_alisan_carrier:
-                alisan += 1
+                if is_ravago:
+                    ravago += 1
+                else:
+                    alisan += 1
 
         if not dates:
             raise SourceSchemaError("Araç kayıt raporunda geçerli Kayıt Tarihi bulunamadı")
@@ -470,10 +478,10 @@ def extract_vehicle_presentation(path: str | Path) -> VehiclePresentationReport:
             is_alisan_carrier = "ALISAN" in carrier_key
             if is_alisan_carrier:
                 alisan_carrier_total += 1
-            if is_ravago:
-                ravago += 1
-            elif is_alisan_carrier:
-                alisan += 1
+                if is_ravago:
+                    ravago += 1
+                else:
+                    alisan += 1
 
             if status_key == "KAPI CIKIS TAMAMLANDI":
                 completed_records += 1

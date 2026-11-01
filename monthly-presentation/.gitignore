@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+work/
+outputs/
+inputs/
+*.xlsx
+*.xls
+*.pptx
+*.validation.json
+!templates/*.pptx

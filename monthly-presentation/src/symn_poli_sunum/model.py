@@ -187,6 +187,26 @@ def _warnings(report: PregateReport, split: VehicleSplit) -> tuple[DataWarning, 
                 },
             )
         )
+    alisan_registered = next(
+        (
+            registered
+            for name, _rejected, registered in report.carriers
+            if normalize_label(name) == "ALISAN LOJISTIK A.S."
+        ),
+        None,
+    )
+    if alisan_registered is not None and alisan_registered != split.alisan_carrier_total:
+        warnings.append(
+            DataWarning(
+                code="ALISAN_SCOPE_MISMATCH",
+                message=(
+                    "Alişan kapsamları farklı: Pregate lojistik tablosu "
+                    f"{_tr_number(alisan_registered)}, araç kayıt raporu "
+                    f"{_tr_number(split.alisan_carrier_total)} kayıt gösteriyor."
+                ),
+                sources={"Sheet8": alisan_registered, "vehicle_registry": split.alisan_carrier_total},
+            )
+        )
     return tuple(warnings)
 
 
@@ -483,6 +503,7 @@ def build_classic_pregate_model(report: PregateReport, split: VehicleSplit) -> S
     """Create an English classic-template deck using the monthly prepared tables."""
 
     period = validate_periods(report, split)
+    warnings = _warnings(report, split)
     english_month = (
         "JANUARY",
         "FEBRUARY",
@@ -500,13 +521,17 @@ def build_classic_pregate_model(report: PregateReport, split: VehicleSplit) -> S
 
     adjusted_carriers: list[tuple[str, int]] = []
     alisan_found = False
+    alisan_original = 0
+    alisan_adjusted = 0
     for name, _rejected, registered in report.carriers:
         if normalize_label(name) == "ALISAN LOJISTIK A.S.":
             if split.ravago > registered:
                 raise ValueError(
                     f"Ravago count ({split.ravago}) exceeds the Pregate Alişan total ({registered})."
                 )
-            adjusted_carriers.append((name, registered - split.ravago))
+            alisan_original = registered
+            alisan_adjusted = registered - split.ravago
+            adjusted_carriers.append((name, alisan_adjusted))
             adjusted_carriers.append(("RAVAGO", split.ravago))
             alisan_found = True
         else:
@@ -516,7 +541,11 @@ def build_classic_pregate_model(report: PregateReport, split: VehicleSplit) -> S
 
     logistics = tuple(
         sorted(
-            ((name, count) for name, count in adjusted_carriers if count >= 30),
+            (
+                (name, count)
+                for name, count in adjusted_carriers
+                if count >= 30 or normalize_label(name) in {"ALISAN LOJISTIK A.S.", "RAVAGO"}
+            ),
             key=lambda item: (-item[1], normalize_label(item[0])),
         )
     )
@@ -536,6 +565,20 @@ def build_classic_pregate_model(report: PregateReport, split: VehicleSplit) -> S
         ),
         report.summary_total,
     )
+    rejection_departments = tuple(
+        sorted(
+            ((name, rejected) for name, _approved, rejected, _total in report.departments if rejected > 0),
+            key=lambda item: (-item[1], normalize_label(item[0])),
+        )
+    )
+    rejection_rows = tuple(
+        sorted(
+            report.carrier_rejection_rows,
+            key=lambda row: (-int(row[-2]), normalize_label(row[0])),
+        )
+    )
+    rejection_split = min(20, len(rejection_rows))
+    previous_year = report.year - 1
 
     slides = (
         Slide(
@@ -574,7 +617,7 @@ def build_classic_pregate_model(report: PregateReport, split: VehicleSplit) -> S
             source="Pregate presentation workbook · Sheet10",
         ),
         Slide(
-            title="INSPECTED VEHICLES 2025-2026",
+            title=f"INSPECTED VEHICLES {previous_year}-{report.year}",
             kind="classic_year_comparison",
             data={
                 "departments": report.year_comparison,
@@ -584,7 +627,7 @@ def build_classic_pregate_model(report: PregateReport, split: VehicleSplit) -> S
             source="Pregate presentation workbook · Sheet2",
         ),
         Slide(
-            title="2025-2026 TOTAL NUMBER OF REJECTIONS",
+            title=f"{previous_year}-{report.year} TOTAL NUMBER OF REJECTIONS",
             kind="classic_rejection_comparison",
             data={
                 "departments": report.rejection_comparison,
@@ -617,30 +660,59 @@ def build_classic_pregate_model(report: PregateReport, split: VehicleSplit) -> S
             data={
                 "carriers": logistics,
                 "ravago": split.ravago,
-                "alisan_original": next(
-                    registered
-                    for name, _rejected, registered in report.carriers
-                    if normalize_label(name) == "ALISAN LOJISTIK A.S."
-                ),
-                "alisan_adjusted": next(
-                    count
-                    for name, count in logistics
-                    if normalize_label(name) == "ALISAN LOJISTIK A.S."
-                ),
+                "alisan_original": alisan_original,
+                "alisan_adjusted": alisan_adjusted,
             },
             source="Pregate presentation workbook · Sheet8; vehicle registration company field",
         ),
         Slide(
-            title="THANK YOU",
-            kind="classic_closing",
-            data={},
-            source="Corporate presentation template",
+            title=f"{report.year} - {english_month} REJECTION DISTRIBUTION BY DEPARTMENTS",
+            kind="classic_rejection_departments",
+            data={
+                "departments": rejection_departments,
+                "total": sum(count for _name, count in rejection_departments),
+            },
+            source="Pregate presentation workbook · Sheet1",
+        ),
+        Slide(
+            title=f"{report.year} PRE-GATE REJECTION DISTRIBUTIONS I",
+            kind="classic_rejection_details",
+            data={
+                "part": 1,
+                "headers": report.rejection_reason_headers,
+                "rows": rejection_rows[:rejection_split],
+            },
+            source="Pregate presentation workbook · Sheet8",
+        ),
+        Slide(
+            title=f"{report.year} PRE-GATE REJECTION DISTRIBUTIONS II",
+            kind="classic_rejection_details",
+            data={
+                "part": 2,
+                "headers": report.rejection_reason_headers,
+                "rows": rejection_rows[rejection_split:],
+            },
+            source="Pregate presentation workbook · Sheet8",
+        ),
+        Slide(
+            title="SCOPE AND DATA NOTES",
+            kind="classic_scope_notes",
+            data={
+                "notes": (
+                    f"Reporting period: {english_month.title()} {report.year}.",
+                    "Each slide preserves the scope of its source worksheet; totals from different scopes are not combined.",
+                    f"Ravago is separated only within Alişan carrier records: {split.ravago} Ravago and {split.alisan} other Alişan records.",
+                    "All values are aggregated; plate, driver and phone details are excluded.",
+                    *(warning.message for warning in warnings),
+                )
+            },
+            source="Pregate presentation workbook and vehicle registration report",
         ),
     )
     return SlideModel(
         period=period,
         output_filename=f"{_tr_upper(period.label)} PREGATE SUNUM.pptx",
         slides=slides,
-        warnings=(),
+        warnings=warnings,
         metadata={"name": "SYMN-poli-sunum", "version": "3.0", "language": "English"},
     )

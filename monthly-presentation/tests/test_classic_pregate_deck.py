@@ -28,6 +28,12 @@ class ClassicPregateDeckTests(unittest.TestCase):
         )
         self.assertEqual(report.shift_months[-1], "October")
         self.assertTrue(any(row[0] == "08-16" and row[1] == "Poliport Terminal" for row in report.shift_rows))
+        self.assertEqual(
+            report.rejection_reason_headers,
+            ("FİRMA TALEBİ İPTAL", "DONANIMSAL", "SÜRÜCÜ", "EVRAKSAL", "KKD"),
+        )
+        self.assertEqual(len(report.carrier_rejection_rows), 39)
+        self.assertEqual(report.carrier_rejection_rows[0][-2:], (24, 430))
 
     def test_classic_model_applies_only_the_requested_alisan_ravago_adjustment(self) -> None:
         self.assertTrue(hasattr(model_module, "build_classic_pregate_model"))
@@ -40,9 +46,33 @@ class ClassicPregateDeckTests(unittest.TestCase):
         logistics = next(slide for slide in model.slides if slide.kind == "classic_logistics")
         counts = dict(logistics.data["carriers"])
 
-        self.assertEqual(len(model.slides), 10)
+        self.assertEqual(len(model.slides), 13)
         self.assertEqual(model.slides[0].title, "PREGATE OCTOBER 2026")
-        self.assertEqual(model.slides[-1].title, "THANK YOU")
+        self.assertEqual(
+            [slide.kind for slide in model.slides],
+            [
+                "cover",
+                "classic_vehicle_numbers",
+                "classic_site_distribution",
+                "classic_shift_table",
+                "classic_year_comparison",
+                "classic_rejection_comparison",
+                "classic_empty_reasons",
+                "classic_empty_companies",
+                "classic_logistics",
+                "classic_rejection_departments",
+                "classic_rejection_details",
+                "classic_rejection_details",
+                "classic_scope_notes",
+            ],
+        )
+        self.assertEqual(model.slides[10].data["part"], 1)
+        self.assertEqual(model.slides[11].data["part"], 2)
+        self.assertEqual(
+            len(model.slides[10].data["rows"]) + len(model.slides[11].data["rows"]),
+            len(report.carrier_rejection_rows),
+        )
+        self.assertEqual(model.slides[-1].title, "SCOPE AND DATA NOTES")
         self.assertEqual(model.output_filename, "EKİM 2026 PREGATE SUNUM.pptx")
         self.assertEqual(counts["RAVAGO"], 328)
         self.assertEqual(counts["ALIŞAN LOJİSTİK A.Ş."], 102)
@@ -68,7 +98,7 @@ class ClassicPregateDeckTests(unittest.TestCase):
 
             self.assertEqual(exit_code, 0)
             self.assertEqual(payload["output_filename"], "EKİM 2026 PREGATE SUNUM.pptx")
-            self.assertEqual(len(payload["slides"]), 10)
+            self.assertEqual(len(payload["slides"]), 13)
 
 
 if __name__ == "__main__":
