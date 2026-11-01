@@ -108,6 +108,19 @@ class SlideModelTests(unittest.TestCase):
         for forbidden in ("plaka", "çekici", "surucu", "sürücü", "telefon"):
             self.assertNotIn(forbidden, set(keys(payload)))
 
+    def test_source_notes_do_not_pin_a_historical_vehicle_filename(self) -> None:
+        from symn_poli_sunum.model import build_slide_model
+
+        payload = build_slide_model(simple_report(), simple_split()).to_dict()
+        source_notes = " ".join(slide["source"] for slide in payload["slides"])
+
+        self.assertIn("Arac_Kayit_Sorgulama.xlsx", source_notes)
+        self.assertNotIn("Arac_Kayit_Sorgulama (3).xlsx", source_notes)
+
+    @unittest.skipUnless(
+        PREGATE_SOURCE.is_file() and VEHICLE_SOURCE.is_file(),
+        "Yerel Eylül Excel örnekleri bulunamadı",
+    )
     def test_real_sources_populate_key_charts(self) -> None:
         from symn_poli_sunum.model import build_slide_model
 

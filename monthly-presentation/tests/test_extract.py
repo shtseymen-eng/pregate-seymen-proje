@@ -96,6 +96,7 @@ class ExtractTests(unittest.TestCase):
             with self.assertRaisesRegex(module.SourceSchemaError, "Firma Adı"):
                 module.extract_vehicle_split(input_path)
 
+    @unittest.skipUnless(PREGATE_SOURCE.is_file(), "Yerel Eylül Pregate örneği bulunamadı")
     def test_real_pregate_source_extracts_september_summary(self) -> None:
         module = extract_module()
 
@@ -120,6 +121,7 @@ class ExtractTests(unittest.TestCase):
             with self.assertRaisesRegex(module.SourceSchemaError, "Sheet10"):
                 module.extract_pregate_report(input_path)
 
+    @unittest.skipUnless(VEHICLE_SOURCE.is_file(), "Yerel Eylül araç örneği bulunamadı")
     def test_real_vehicle_source_extracts_ravago_and_alisan_split(self) -> None:
         module = extract_module()
 

@@ -14,6 +14,7 @@ from symn_poli_sunum.cli import main
 SOURCE = Path("/Users/seymen/Downloads/Arac_Kayit_Sorgulama (4).xlsx")
 
 
+@unittest.skipUnless(SOURCE.is_file(), "Yerel Ekim araç örneği bulunamadı")
 class VehicleDeckTests(unittest.TestCase):
     def test_real_october_report_extracts_safe_aggregate_fields(self) -> None:
         self.assertTrue(hasattr(extract_module, "extract_vehicle_presentation"))

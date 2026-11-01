@@ -14,6 +14,10 @@ PREGATE_SOURCE = Path("/Users/seymen/Downloads/PregateSunum_Tam (1).xlsx")
 VEHICLE_SOURCE = Path("/Users/seymen/Downloads/Arac_Kayit_Sorgulama (4).xlsx")
 
 
+@unittest.skipUnless(
+    PREGATE_SOURCE.is_file() and VEHICLE_SOURCE.is_file(),
+    "Yerel Ekim Excel örnekleri bulunamadı",
+)
 class ClassicPregateDeckTests(unittest.TestCase):
     def test_october_ready_tables_are_extracted_from_the_new_workbook(self) -> None:
         report = extract_module.extract_pregate_report(PREGATE_SOURCE)

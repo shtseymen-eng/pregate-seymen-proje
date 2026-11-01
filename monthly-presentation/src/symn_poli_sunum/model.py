@@ -362,7 +362,7 @@ def build_slide_model(report: PregateReport, split: VehicleSplit) -> SlideModel:
                 "alisan": split.alisan,
                 "alisan_carrier_total": split.alisan_carrier_total,
             },
-            source="Arac_Kayit_Sorgulama (3).xlsx · Firma Adı / Nakliyeci",
+            source="Arac_Kayit_Sorgulama.xlsx · Firma Adı / Nakliyeci",
         ),
         Slide(
             title="Vardiya ve Aylık Araç Eğilimi",
