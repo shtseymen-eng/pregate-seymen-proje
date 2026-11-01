@@ -88,6 +88,17 @@ test("optional template elements can be absent from the sanitized deck", () => {
 });
 
 
+test("template cleanup finds only exact BACK UP text placeholders", () => {
+  const ndjson = [
+    JSON.stringify({ kind: "textbox", id: "sh/remove", text: "BACK UP" }),
+    JSON.stringify({ kind: "textbox", id: "sh/keep", text: "Back up procedure" }),
+    "not-json",
+  ].join("\n");
+
+  assert.deepEqual(deckBuilder.elementIdsWithExactText(ndjson, "BACK UP"), ["sh/remove"]);
+});
+
+
 test("PowerPoint point sizes are converted to the engine pixel units", () => {
   assert.equal(deckBuilder.ptToPx(12), 16);
   assert.equal(deckBuilder.ptToPx(20), 80 / 3);

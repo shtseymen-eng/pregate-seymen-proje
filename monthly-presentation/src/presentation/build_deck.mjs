@@ -75,6 +75,7 @@ export async function presentationRuntimePaths() {
   }
   const skillDir = await discoverPresentationSkillDir();
   return {
+    skillDir,
     runtimeHelpers: path.join(skillDir, "container_tools", "runtime_helpers.mjs"),
     artifactUtils: path.join(skillDir, "container_tools", "artifact_tool_utils.mjs"),
   };
@@ -131,6 +132,29 @@ export function deleteIfPresent(presentation, elementId) {
     if (String(error?.message ?? error).includes("Unknown element ID")) return false;
     throw error;
   }
+}
+
+
+export function elementIdsWithExactText(ndjson, expectedText) {
+  const ids = [];
+  for (const line of String(ndjson ?? "").split(/\r?\n/u)) {
+    if (!line.trim()) continue;
+    try {
+      const item = JSON.parse(line);
+      if (item?.text === expectedText && typeof item.id === "string") ids.push(item.id);
+    } catch {
+      // Ignore non-record diagnostic lines from the inspector.
+    }
+  }
+  return ids;
+}
+
+
+export async function deleteElementsWithExactText(presentation, expectedText) {
+  const inspection = await presentation.inspect({ kind: "textbox", max_chars: 200000 });
+  const ids = elementIdsWithExactText(inspection.ndjson, expectedText);
+  for (const id of ids) deleteIfPresent(presentation, id);
+  return ids;
 }
 
 
@@ -928,6 +952,7 @@ async function buildTemplateFrame(referencePath, model) {
   ]);
   const { FileBlob, PresentationFile } = await importRuntimeModule("@oai/artifact-tool");
   const presentation = await PresentationFile.importPptx(await FileBlob.load(referencePath));
+  await deleteElementsWithExactText(presentation, "BACK UP");
   const originals = [...slidesFromPresentation(presentation)];
   const templateSlides = resolveTemplateSlideIndexes(originals.length);
 

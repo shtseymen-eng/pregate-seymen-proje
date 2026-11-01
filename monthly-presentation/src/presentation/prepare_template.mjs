@@ -2,7 +2,12 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { defaultReferencePath, presentationRuntimePaths, resolveTemplateSlideIndexes } from "./build_deck.mjs";
+import {
+  defaultReferencePath,
+  deleteElementsWithExactText,
+  presentationRuntimePaths,
+  resolveTemplateSlideIndexes,
+} from "./build_deck.mjs";
 
 
 function argumentValue(name) {
@@ -28,6 +33,7 @@ async function main() {
   const { importRuntimeModule } = await import(pathToFileURL(runtimeHelpers).href);
   const { FileBlob, PresentationFile } = await importRuntimeModule("@oai/artifact-tool");
   const presentation = await PresentationFile.importPptx(await FileBlob.load(path.resolve(reference)));
+  await deleteElementsWithExactText(presentation, "BACK UP");
   const originals = [...slidesFromPresentation(presentation)];
   const indexes = resolveTemplateSlideIndexes(originals.length);
   const selected = [
