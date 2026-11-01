@@ -80,6 +80,14 @@ _EMPTY_REASON_LABELS_EN = {
     "HAVUZ VANASINDA SU VAR": "Water in basin valve",
 }
 
+_REJECTION_REASON_LABELS_EN = {
+    "FIRMA TALEBI IPTAL": "COMPANY REQUEST / CANCELLATION",
+    "DONANIMSAL": "EQUIPMENT",
+    "SURUCU": "DRIVER",
+    "EVRAKSAL": "DOCUMENTATION",
+    "KKD": "PPE",
+}
+
 
 @dataclass(frozen=True)
 class ReportingPeriod:
@@ -245,6 +253,32 @@ def _clean_empty_reasons(report: PregateReport) -> tuple[tuple[str, int], ...]:
         totals[key] = totals.get(key, 0) + value
         labels[key] = display
     return tuple(sorted(((labels[key], value) for key, value in totals.items()), key=lambda item: (-item[1], item[0])))
+
+
+def _classic_warning_notes(warnings: tuple[DataWarning, ...]) -> tuple[str, ...]:
+    notes: list[str] = []
+    for warning in warnings:
+        if warning.code == "TOTAL_SCOPE_MISMATCH":
+            notes.append(
+                "Vehicle totals differ by source scope: "
+                f"Sheet1 shows {_tr_number(warning.sources['Sheet1'])}; "
+                f"Sheet2 shows {_tr_number(warning.sources['Sheet2'])}."
+            )
+        elif warning.code == "REJECTION_SCOPE_MISMATCH":
+            notes.append(
+                "Rejection totals differ by source scope: "
+                f"Sheet1 shows {_tr_number(warning.sources['Sheet1'])}; "
+                f"Sheet4 shows {_tr_number(warning.sources['Sheet4'])}."
+            )
+        elif warning.code == "ALISAN_SCOPE_MISMATCH":
+            notes.append(
+                "Alişan totals differ by source scope: the Pregate logistics table shows "
+                f"{_tr_number(warning.sources['Sheet8'])}; the vehicle registration report shows "
+                f"{_tr_number(warning.sources['vehicle_registry'])}."
+            )
+        elif warning.code == "CARRIER_SPLIT_MISMATCH":
+            notes.append("The Ravago and other Alişan split does not reconcile to the Alişan carrier total.")
+    return tuple(notes)
 
 
 def build_slide_model(report: PregateReport, split: VehicleSplit) -> SlideModel:
@@ -579,6 +613,10 @@ def build_classic_pregate_model(report: PregateReport, split: VehicleSplit) -> S
     )
     rejection_split = min(20, len(rejection_rows))
     previous_year = report.year - 1
+    rejection_reason_headers = tuple(
+        _REJECTION_REASON_LABELS_EN.get(normalize_label(header), str(header).strip())
+        for header in report.rejection_reason_headers
+    )
 
     slides = (
         Slide(
@@ -679,7 +717,7 @@ def build_classic_pregate_model(report: PregateReport, split: VehicleSplit) -> S
             kind="classic_rejection_details",
             data={
                 "part": 1,
-                "headers": report.rejection_reason_headers,
+                "headers": rejection_reason_headers,
                 "rows": rejection_rows[:rejection_split],
             },
             source="Pregate presentation workbook · Sheet8",
@@ -689,7 +727,7 @@ def build_classic_pregate_model(report: PregateReport, split: VehicleSplit) -> S
             kind="classic_rejection_details",
             data={
                 "part": 2,
-                "headers": report.rejection_reason_headers,
+                "headers": rejection_reason_headers,
                 "rows": rejection_rows[rejection_split:],
             },
             source="Pregate presentation workbook · Sheet8",
@@ -703,7 +741,7 @@ def build_classic_pregate_model(report: PregateReport, split: VehicleSplit) -> S
                     "Each slide preserves the scope of its source worksheet; totals from different scopes are not combined.",
                     f"Ravago is separated only within Alişan carrier records: {split.ravago} Ravago and {split.alisan} other Alişan records.",
                     "All values are aggregated; plate, driver and phone details are excluded.",
-                    *(warning.message for warning in warnings),
+                    *_classic_warning_notes(warnings),
                 )
             },
             source="Pregate presentation workbook and vehicle registration report",

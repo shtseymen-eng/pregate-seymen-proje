@@ -69,10 +69,17 @@ class ClassicPregateDeckTests(unittest.TestCase):
         self.assertEqual(model.slides[10].data["part"], 1)
         self.assertEqual(model.slides[11].data["part"], 2)
         self.assertEqual(
+            model.slides[10].data["headers"],
+            ("COMPANY REQUEST / CANCELLATION", "EQUIPMENT", "DRIVER", "DOCUMENTATION", "PPE"),
+        )
+        self.assertEqual(
             len(model.slides[10].data["rows"]) + len(model.slides[11].data["rows"]),
             len(report.carrier_rejection_rows),
         )
         self.assertEqual(model.slides[-1].title, "SCOPE AND DATA NOTES")
+        notes = " ".join(model.slides[-1].data["notes"])
+        self.assertIn("Pregate logistics table", notes)
+        self.assertNotIn("kapsam", notes.lower())
         self.assertEqual(model.output_filename, "EKİM 2026 PREGATE SUNUM.pptx")
         self.assertEqual(counts["RAVAGO"], 328)
         self.assertEqual(counts["ALIŞAN LOJİSTİK A.Ş."], 102)

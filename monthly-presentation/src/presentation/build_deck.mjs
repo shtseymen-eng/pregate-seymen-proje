@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -7,10 +8,77 @@ import { createTheme } from "./theme.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WORKSPACE = path.resolve(__dirname, "../..");
-const SKILL_DIR = "/Users/seymen/.codex/plugins/cache/openai-primary-runtime/presentations/26.1007.11041/skills/presentations";
-const RUNTIME_HELPERS = path.join(SKILL_DIR, "container_tools/runtime_helpers.mjs");
-const ARTIFACT_UTILS = path.join(SKILL_DIR, "container_tools/artifact_tool_utils.mjs");
-const DEFAULT_REFERENCE = "/Users/seymen/Downloads/EYLÜL 2026 PREGATE SUNUM.pptx";
+
+
+export function defaultReferencePath(workspaceDir = WORKSPACE) {
+  return path.join(workspaceDir, "templates", "pregate-classic-template.pptx");
+}
+
+
+export function runtimeNodeModulesPath(environment = process.env, homeDirectory = os.homedir()) {
+  const configured = environment.RUNTIME_NODE_MODULES ?? environment.CODEX_PRIMARY_RUNTIME_NODE_MODULES;
+  if (configured) return path.resolve(configured);
+  return path.join(
+    homeDirectory,
+    ".cache",
+    "codex-runtimes",
+    "codex-primary-runtime",
+    "dependencies",
+    "node",
+    "node_modules",
+  );
+}
+
+
+async function discoverPresentationSkillDir() {
+  if (process.env.PREGATE_PRESENTATION_SKILL_DIR) {
+    return path.resolve(process.env.PREGATE_PRESENTATION_SKILL_DIR);
+  }
+  const versionsRoot = path.join(
+    process.env.CODEX_HOME ?? path.join(os.homedir(), ".codex"),
+    "plugins",
+    "cache",
+    "openai-primary-runtime",
+    "presentations",
+  );
+  let versions;
+  try {
+    versions = await fs.readdir(versionsRoot, { withFileTypes: true });
+  } catch (error) {
+    throw new Error(
+      "Codex presentation runtime was not found. Set PREGATE_PRESENTATION_SKILL_DIR to the installed presentations skill directory.",
+      { cause: error },
+    );
+  }
+  const candidates = versions
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort((left, right) => right.localeCompare(left, undefined, { numeric: true }));
+  for (const version of candidates) {
+    const candidate = path.join(versionsRoot, version, "skills", "presentations");
+    try {
+      await fs.access(path.join(candidate, "container_tools", "runtime_helpers.mjs"));
+      return candidate;
+    } catch {
+      // Try the next installed runtime version.
+    }
+  }
+  throw new Error(
+    "Codex presentation runtime was not found. Set PREGATE_PRESENTATION_SKILL_DIR to the installed presentations skill directory.",
+  );
+}
+
+
+export async function presentationRuntimePaths() {
+  if (!process.env.RUNTIME_NODE_MODULES && !process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES) {
+    process.env.RUNTIME_NODE_MODULES = runtimeNodeModulesPath();
+  }
+  const skillDir = await discoverPresentationSkillDir();
+  return {
+    runtimeHelpers: path.join(skillDir, "container_tools", "runtime_helpers.mjs"),
+    artifactUtils: path.join(skillDir, "container_tools", "artifact_tool_utils.mjs"),
+  };
+}
 
 
 export function createDeckSpec(model) {
@@ -32,6 +100,9 @@ export function createDeckSpec(model) {
     classic_empty_reasons: ["table", "chart"],
     classic_empty_companies: ["table"],
     classic_logistics: ["chart"],
+    classic_rejection_departments: ["chart"],
+    classic_rejection_details: ["table"],
+    classic_scope_notes: ["table"],
     classic_closing: [],
   };
   return model.slides.map((slide, index) => ({
@@ -42,6 +113,24 @@ export function createDeckSpec(model) {
     usesClassicTemplate: true,
     nativeObjects: evidence[slide.kind] ?? [],
   }));
+}
+
+
+export function resolveTemplateSlideIndexes(slideCount) {
+  if (slideCount === 3) return { cover: 0, content: 1, closing: 2 };
+  if (slideCount >= 16) return { cover: 0, content: 15, closing: 14 };
+  throw new Error("Reference must be the bundled three-slide template or the original reference presentation.");
+}
+
+
+export function deleteIfPresent(presentation, elementId) {
+  try {
+    presentation.delete(elementId);
+    return true;
+  } catch (error) {
+    if (String(error?.message ?? error).includes("Unknown element ID")) return false;
+    throw error;
+  }
 }
 
 
@@ -766,28 +855,96 @@ function addClassicLogistics(slide, modelSlide, theme, applyPresentationChartFon
 }
 
 
+function addClassicRejectionDepartments(slide, modelSlide, theme, applyPresentationChartFont) {
+  addTitle(slide, modelSlide, theme);
+  const rows = modelSlide.data.departments;
+  const chart = slide.charts.add("bar", {
+    ...chartBase(theme),
+    position: { left: 105, top: 90, width: 1080, height: 520 },
+    categories: rows.map((row) => shortLabel(row[0], 42)),
+    series: [{ name: "Rejections", values: rows.map((row) => row[1]), fill: theme.colors.total }],
+    barOptions: { direction: "bar", grouping: "clustered", gapWidth: 32 },
+    dataLabels: {
+      showValue: true,
+      position: "outEnd",
+      textStyle: { fontSize: ptToPx(10), fill: theme.colors.text, bold: true },
+    },
+  });
+  styleChart(chart, applyPresentationChartFont);
+}
+
+
+function addClassicRejectionDetails(slide, modelSlide, theme) {
+  addTitle(slide, modelSlide, theme);
+  const data = modelSlide.data;
+  const header = ["LOGISTICS COMPANY", ...data.headers, "TOTAL REJECTIONS", "TOTAL RECORDS"];
+  const emptyRow = ["NO ADDITIONAL RECORDS", ...Array(data.headers.length + 2).fill("")];
+  const rows = data.rows.length > 0 ? data.rows : [emptyRow];
+  const values = [
+    header,
+    ...rows.map((row) => [shortLabel(row[0], 42), ...row.slice(1).map(number)]),
+  ];
+  addClassicTable(
+    slide,
+    values,
+    { left: 36, top: 83, width: 1208, height: 552 },
+    [330, ...Array(data.headers.length).fill(110), 164, 164],
+    theme,
+    {
+      bodyFontPt: 7.2,
+      rowHeights: [34, ...Array(values.length - 1).fill(25)],
+    },
+  );
+}
+
+
+function addClassicScopeNotes(slide, modelSlide, theme) {
+  addTitle(slide, modelSlide, theme);
+  const notes = modelSlide.data.notes;
+  const values = [
+    ["ITEM", "DETAIL"],
+    ...notes.map((note, index) => [`${index + 1}`, note]),
+  ];
+  addClassicTable(
+    slide,
+    values,
+    { left: 72, top: 90, width: 1136, height: 540 },
+    [105, 1031],
+    theme,
+    {
+      bodyFontPt: 11.5,
+      leftAlignColumns: [0, 1],
+      rowHeights: [38, ...Array(notes.length).fill(Math.max(48, Math.floor(500 / Math.max(1, notes.length))))],
+    },
+  );
+}
+
+
 async function buildTemplateFrame(referencePath, model) {
+  const { runtimeHelpers, artifactUtils } = await presentationRuntimePaths();
   const [{ importRuntimeModule }, { applyPresentationChartFont }] = await Promise.all([
-    import(pathToFileURL(RUNTIME_HELPERS).href),
-    import(pathToFileURL(ARTIFACT_UTILS).href),
+    import(pathToFileURL(runtimeHelpers).href),
+    import(pathToFileURL(artifactUtils).href),
   ]);
   const { FileBlob, PresentationFile } = await importRuntimeModule("@oai/artifact-tool");
   const presentation = await PresentationFile.importPptx(await FileBlob.load(referencePath));
   const originals = [...slidesFromPresentation(presentation)];
-  if (originals.length < 16) throw new Error("Reference presentation does not contain the required template slides.");
+  const templateSlides = resolveTemplateSlideIndexes(originals.length);
 
   const coverTitle = presentation.resolve("sh/7qp4be9c");
   coverTitle.text = model.slides[0].title;
-  presentation.delete("sh/9kby1g7m");
-  const closingTitle = presentation.resolve("sh/k3y5ov21");
-  closingTitle.text = "THANK YOU";
+  deleteIfPresent(presentation, "sh/9kby1g7m");
+  if (model.slides.some((slide) => slide.kind === "classic_closing")) {
+    const closingTitle = presentation.resolve("sh/k3y5ov21");
+    closingTitle.text = "THANK YOU";
+  }
 
   const outputSlides = [originals[0].duplicate()];
   for (let index = 1; index < model.slides.length; index += 1) {
     outputSlides.push(
       model.slides[index].kind === "classic_closing"
-        ? originals[14].duplicate()
-        : originals[15].duplicate(),
+        ? originals[templateSlides.closing].duplicate()
+        : originals[templateSlides.content].duplicate(),
     );
   }
   for (const slide of originals) slide.delete();
@@ -797,7 +954,7 @@ async function buildTemplateFrame(referencePath, model) {
 }
 
 
-export async function buildDeck(model, { referencePath = DEFAULT_REFERENCE } = {}) {
+export async function buildDeck(model, { referencePath = defaultReferencePath() } = {}) {
   const theme = createTheme();
   const { presentation, slides, applyPresentationChartFont } = await buildTemplateFrame(referencePath, model);
 
@@ -864,6 +1021,15 @@ export async function buildDeck(model, { referencePath = DEFAULT_REFERENCE } = {
       case "classic_logistics":
         addClassicLogistics(slide, modelSlide, theme, applyPresentationChartFont);
         break;
+      case "classic_rejection_departments":
+        addClassicRejectionDepartments(slide, modelSlide, theme, applyPresentationChartFont);
+        break;
+      case "classic_rejection_details":
+        addClassicRejectionDetails(slide, modelSlide, theme);
+        break;
+      case "classic_scope_notes":
+        addClassicScopeNotes(slide, modelSlide, theme);
+        break;
       case "classic_closing":
         slide.speakerNotes.text = `Source: ${modelSlide.source}`;
         break;
@@ -879,9 +1045,10 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   const model = JSON.parse(await fs.readFile(path.resolve(args.data), "utf8"));
   const presentation = await buildDeck(model, {
-    referencePath: args.reference ? path.resolve(args.reference) : DEFAULT_REFERENCE,
+    referencePath: args.reference ? path.resolve(args.reference) : defaultReferencePath(),
   });
-  const { importRuntimeModule } = await import(pathToFileURL(RUNTIME_HELPERS).href);
+  const { runtimeHelpers } = await presentationRuntimePaths();
+  const { importRuntimeModule } = await import(pathToFileURL(runtimeHelpers).href);
   const { PresentationFile } = await importRuntimeModule("@oai/artifact-tool");
   const output = args.output ? path.resolve(args.output) : presentationPaths(model, WORKSPACE).candidatePath;
   await fs.mkdir(path.dirname(output), { recursive: true });
