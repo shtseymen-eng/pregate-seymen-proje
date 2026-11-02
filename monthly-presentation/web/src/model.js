@@ -20,6 +20,31 @@ const REJECTION_LABELS = new Map([
   ["KKD", "PPE"],
 ]);
 
+const SITE_DISTRIBUTION_GROUPS = [
+  ["POLIPORT TERMINAL", "POLIPORT TERMINAL"],
+  ["POLIPORT KURUYUK ANTREPO", "POLIPORT KURUYÜK ANTREPO"],
+  ["POLISAN KIMYA SEVKIYAT", "POLİSAN KİMYA SEVKİYAT"],
+  ["POLISAN YAPIKIM SEVKIYAT", "POLİSAN YAPIKIM SEVKİYAT"],
+  ["DOW PA", "DOW PA"],
+  ["DOW CM", "DOW CM"],
+];
+
+
+export function buildSiteDistributionRows(departments) {
+  const totals = new Map(SITE_DISTRIBUTION_GROUPS.map(([key]) => [key, 0]));
+  let other = 0;
+  for (const row of departments ?? []) {
+    const key = normalizeLabel(row?.[0]);
+    const value = Number(row?.[3] ?? 0);
+    if (totals.has(key)) totals.set(key, totals.get(key) + value);
+    else other += value;
+  }
+  return [
+    ...SITE_DISTRIBUTION_GROUPS.map(([key, displayName]) => [displayName, totals.get(key)]),
+    ["OTHER", other],
+  ];
+}
+
 
 function warningsFor(report, split) {
   const warnings = [];
@@ -127,7 +152,7 @@ export function buildPresentationModel(report, split) {
   const slides = [
     { title: `PREGATE ${monthEnglish} ${report.period.year}`, kind: "cover", data: { subtitle: "Monthly Operations Presentation" } },
     { title: `${report.period.year} - ${monthEnglish} VEHICLE NUMBERS`, kind: "classic_vehicle_numbers", data: { departments: report.departments, approved: report.summaryApproved, rejected: report.summaryRejected, total: report.summaryTotal } },
-    { title: "PREGATE SITE SERVICE PERCENTAGE DISTRIBUTION", kind: "classic_site_distribution", data: { departments: report.departments.map(([name, , , total]) => [name, total]) } },
+    { title: "PREGATE SITE SERVICE PERCENTAGE DISTRIBUTION", kind: "classic_site_distribution", data: { departments: buildSiteDistributionRows(report.departments) } },
     { title: `POLIPORT ${report.period.year} VEHICLE LIST BY SHIFT`, kind: "classic_shift_table", data: { months: report.shiftMonths, rows: report.shiftRows, monthlyTotals: report.monthlyTotals, currentShiftTotals: report.currentShiftTotals, currentMonthTotal: report.currentMonthTotal } },
     { title: `INSPECTED VEHICLES ${previousYear}-${report.period.year}`, kind: "classic_year_comparison", data: { departments: report.yearComparison, previousTotal: report.comparisonPreviousTotal, currentTotal: report.comparisonTotal } },
     { title: `${previousYear}-${report.period.year} TOTAL NUMBER OF REJECTIONS`, kind: "classic_rejection_comparison", data: { departments: report.rejectionComparison, previousTotal: report.rejectionComparisonPreviousTotal, currentTotal: report.rejectionComparisonTotal } },

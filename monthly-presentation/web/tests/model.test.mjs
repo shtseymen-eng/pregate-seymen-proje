@@ -55,6 +55,54 @@ test("presentation model preserves the approved 13-slide story and Turkish filen
 });
 
 
+test("site distribution keeps the requested order and groups every remaining department as OTHER", async () => {
+  const { buildSiteDistributionRows } = await modules();
+  assert.equal(typeof buildSiteDistributionRows, "function");
+  const departments = [
+    ["Poliport Terminal", 0, 0, 2868],
+    ["Poliport KuruYük Antrepo", 0, 0, 651],
+    ["POLİSAN KİMYA SEVKİYAT", 0, 0, 420],
+    ["Polisan Yapıkim Sevkiyat", 0, 0, 102],
+    ["dow pa", 0, 0, 161],
+    ["DOW CM", 0, 0, 179],
+    ["ATIK SAHA", 0, 0, 45],
+    ["FABRİKA SAHA(GENEL)", 0, 0, 78],
+  ];
+
+  const rows = buildSiteDistributionRows(departments);
+
+  assert.deepEqual(rows, [
+    ["POLIPORT TERMINAL", 2868],
+    ["POLIPORT KURUYÜK ANTREPO", 651],
+    ["POLİSAN KİMYA SEVKİYAT", 420],
+    ["POLİSAN YAPIKIM SEVKİYAT", 102],
+    ["DOW PA", 161],
+    ["DOW CM", 179],
+    ["OTHER", 123],
+  ]);
+  assert.equal(rows.reduce((sum, row) => sum + row[1], 0), 4504);
+});
+
+
+test("site distribution keeps missing requested departments as zero-value groups", async () => {
+  const { buildSiteDistributionRows } = await modules();
+  assert.equal(typeof buildSiteDistributionRows, "function");
+
+  assert.deepEqual(buildSiteDistributionRows([
+    ["POLIPORT TERMINAL", 0, 0, 10],
+    ["ATIK SAHA", 0, 0, 2],
+  ]), [
+    ["POLIPORT TERMINAL", 10],
+    ["POLIPORT KURUYÜK ANTREPO", 0],
+    ["POLİSAN KİMYA SEVKİYAT", 0],
+    ["POLİSAN YAPIKIM SEVKİYAT", 0],
+    ["DOW PA", 0],
+    ["DOW CM", 0],
+    ["OTHER", 2],
+  ]);
+});
+
+
 test("dense reason and rejection rows fit while every numeric total is preserved", async () => {
   const { parsePregateWorkbook, parseVehicleWorkbook, buildPresentationModel } = await modules();
   assert.equal(typeof buildPresentationModel, "function");
