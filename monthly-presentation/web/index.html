@@ -23,7 +23,51 @@
         <p>Ana Pregate verileriyle 13 slaytlık PowerPoint oluşturur; Araç Kayıt Sorgulama dosyasını yalnızca Ravago–Alışan ayrımı için kullanır.</p>
       </section>
       <section class="workspace-card" aria-label="Sunum oluşturma alanı">
-        <p class="placeholder">Yükleme alanı hazırlanıyor…</p>
+        <div class="step-heading">
+          <span class="step-number">1</span>
+          <div><h2>Dosyaları seçin</h2><p>İki kaynak aynı ay ve yıla ait olmalıdır.</p></div>
+        </div>
+        <div class="file-grid">
+          <label class="file-card" for="pregate-file">
+            <span class="file-role">ANA KAYNAK</span>
+            <strong>Pregate Sunum Excel’i</strong>
+            <span>Tablolar, analizler ve toplamlar bu dosyadan alınır.</span>
+            <span class="file-action">Dosya seç</span>
+            <input id="pregate-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+            <span id="pregate-name" class="file-name">Dosya seçilmedi</span>
+          </label>
+          <label class="file-card" for="vehicle-file">
+            <span class="file-role">YALNIZCA AYRIM İÇİN</span>
+            <strong>Araç Kayıt Sorgulama Excel’i</strong>
+            <span>Ravago ve diğer Alışan araç sayıları bu dosyadan alınır.</span>
+            <span class="file-action">Dosya seç</span>
+            <input id="vehicle-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+            <span id="vehicle-name" class="file-name">Dosya seçilmedi</span>
+          </label>
+        </div>
+
+        <div class="action-row">
+          <div>
+            <span class="step-number">2</span>
+            <div><h2>Sunumu oluşturun</h2><p id="progress-status" role="status" aria-live="polite">İki dosyayı seçtiğinizde düğme açılır.</p></div>
+          </div>
+          <button id="create-presentation" class="primary-button" type="button" disabled>Sunumu Oluştur</button>
+        </div>
+        <div id="error-message" class="message error" role="alert" hidden></div>
+
+        <section id="success-result" class="success-result" aria-labelledby="success-title" hidden>
+          <div>
+            <span class="success-check">✓</span>
+            <div><h2 id="success-title">Sunum hazır</h2><p id="output-name"></p></div>
+          </div>
+          <dl class="summary-grid">
+            <div><dt>Dönem</dt><dd id="summary-period">—</dd></div>
+            <div><dt>Toplam araç</dt><dd id="summary-total">—</dd></div>
+            <div><dt>Ravago</dt><dd id="summary-ravago">—</dd></div>
+            <div><dt>Diğer Alışan</dt><dd id="summary-alisan">—</dd></div>
+          </dl>
+          <button id="repeat-download" class="secondary-button" type="button">Tekrar İndir</button>
+        </section>
       </section>
     </main>
     <footer>© 2026 SEYMEN · Veriler yüklenmez ve saklanmaz.</footer>

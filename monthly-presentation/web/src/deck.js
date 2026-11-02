@@ -125,7 +125,7 @@ function addEmptyReasons(slide, pptx, modelSlide) {
   ];
   slide.addTable(stripedRows(rows, { total: true }), tableOptions({ x: 0.45, y: 0.96, w: 7.65, h: 5.86, colW: [6.5, 1.15], rowH: fitRowHeight(rows.length, 5.86, 0.48, 0.4), fontSize: rows.length > 12 ? 7.2 : 9 }));
   const chartRows = modelSlide.data.reasons.slice(0, 5).reverse();
-  addChart(slide, pptx, pptx.ChartType.bar, chartRows, { x: 8.35, y: 1.45, w: 4.25, h: 4.9, catAxisLabelFontSize: 8, valAxisLabelFontSize: 8, showValue: true, showCatName: false, showLegend: false, showValue: true, valAxisMinVal: 0, valGridLine: { color: colors.pale, pt: 0.8 } });
+  addChart(slide, pptx, pptx.ChartType.bar, chartRows, { x: 8.35, y: 1.45, w: 4.25, h: 4.9, catAxisLabelFontSize: 8, valAxisLabelFontSize: 8, showValue: true, showCatName: false, showLegend: false, valAxisMinVal: 0, valGridLine: { color: colors.pale, pt: 0.8 } });
 }
 
 
