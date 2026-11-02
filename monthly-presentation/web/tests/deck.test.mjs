@@ -68,3 +68,69 @@ test("generated PowerPoint contains native tables and charts without sensitive r
     assert.ok(Math.max(...sizes) <= 900, `slide ${slideNumber} dense table font must be at most 9pt`);
   }
 });
+
+
+test("slide 3 label layout keeps all counts and one-decimal percentages outside without overlap", async () => {
+  const { siteDistributionLabelLayout } = await deckModule();
+  assert.equal(typeof siteDistributionLabelLayout, "function");
+  const rows = [
+    ["POLIPORT TERMINAL", 2868],
+    ["POLIPORT KURUYÜK ANTREPO", 651],
+    ["POLİSAN KİMYA SEVKİYAT", 420],
+    ["POLİSAN YAPIKIM SEVKİYAT", 102],
+    ["DOW PA", 161],
+    ["DOW CM", 179],
+    ["OTHER", 123],
+  ];
+
+  const labels = siteDistributionLabelLayout(rows);
+
+  assert.equal(labels.length, 7);
+  assert.deepEqual(labels.map((label) => label.name), rows.map((row) => row[0]));
+  assert.deepEqual(labels.map((label) => label.value), rows.map((row) => row[1]));
+  assert.deepEqual(labels.map((label) => label.percentText), ["63.7%", "14.5%", "9.3%", "2.3%", "3.6%", "4.0%", "2.7%"]);
+  assert.deepEqual(labels.map((label) => label.side), ["left", "right", "right", "right", "right", "left", "left"]);
+  for (const side of ["left", "right"]) {
+    const sideLabels = labels.filter((label) => label.side === side).sort((left, right) => left.box.y - right.box.y);
+    for (let index = 1; index < sideLabels.length; index += 1) {
+      assert.ok(sideLabels[index - 1].box.y + sideLabels[index - 1].box.h <= sideLabels[index].box.y);
+    }
+  }
+});
+
+
+test("slide 3 PowerPoint uses a filled native pie with editable callouts and leader lines", async () => {
+  const { generateDeckBlob } = await deckModule();
+  assert.equal(typeof generateDeckBlob, "function");
+  const model = sampleModel();
+  model.slides[2].data.departments = [
+    ["POLIPORT TERMINAL", 2868],
+    ["POLIPORT KURUYÜK ANTREPO", 651],
+    ["POLİSAN KİMYA SEVKİYAT", 420],
+    ["POLİSAN YAPIKIM SEVKİYAT", 102],
+    ["DOW PA", 161],
+    ["DOW CM", 179],
+    ["OTHER", 123],
+  ];
+
+  const blob = await generateDeckBlob(model);
+  const zip = await JSZip.loadAsync(await blob.arrayBuffer());
+  const relationships = await zip.file("ppt/slides/_rels/slide3.xml.rels").async("string");
+  const chartTarget = relationships.match(/Type="[^"]+\/chart" Target="\/([^"]+)"/u)?.[1];
+  assert.ok(chartTarget, "slide 3 must reference a native chart part");
+  const chartXml = await zip.file(chartTarget).async("string");
+  const slideXml = await zip.file("ppt/slides/slide3.xml").async("string");
+
+  assert.match(chartXml, /<c:pieChart>/u);
+  assert.doesNotMatch(chartXml, /<c:doughnutChart>/u);
+  for (const text of [
+    "POLIPORT TERMINAL", "2,868 vehicles (63.7%)",
+    "POLIPORT KURUYÜK ANTREPO", "651 vehicles (14.5%)",
+    "POLİSAN KİMYA SEVKİYAT", "420 vehicles (9.3%)",
+    "POLİSAN YAPIKIM SEVKİYAT", "102 vehicles (2.3%)",
+    "DOW PA", "161 vehicles (3.6%)",
+    "DOW CM", "179 vehicles (4.0%)",
+    "OTHER", "123 vehicles (2.7%)",
+  ]) assert.ok(slideXml.includes(text), `slide 3 must contain editable text: ${text}`);
+  assert.ok((slideXml.match(/<a:prstGeom prst="line">/gu) ?? []).length >= 14, "each callout needs two editable leader-line segments");
+});

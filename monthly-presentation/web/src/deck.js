@@ -76,6 +76,122 @@ function addChart(slide, pptx, type, rows, options = {}) {
 }
 
 
+export function siteDistributionLabelLayout(rows) {
+  const chart = { centerX: 6.67, centerY: 3.88, radius: 2.12, firstSliceAngle: 120 };
+  const total = rows.reduce((sum, row) => sum + Number(row[1] ?? 0), 0);
+  let angle = chart.firstSliceAngle;
+  const labels = rows.map(([name, rawValue]) => {
+    const value = Number(rawValue ?? 0);
+    const sliceAngle = total > 0 ? value / total * 360 : 360 / Math.max(rows.length, 1);
+    const middleAngle = angle + sliceAngle / 2;
+    angle += sliceAngle;
+    const radians = middleAngle * Math.PI / 180;
+    const side = Math.cos(radians) >= 0 ? "right" : "left";
+    return {
+      name: String(name),
+      value,
+      percentText: `${(total > 0 ? value / total * 100 : 0).toFixed(1)}%`,
+      side,
+      anchor: {
+        x: chart.centerX + Math.cos(radians) * chart.radius,
+        y: chart.centerY + Math.sin(radians) * chart.radius,
+      },
+      box: null,
+      attachment: null,
+      elbow: null,
+    };
+  });
+
+  const boxHeight = 0.62;
+  const gap = 0.10;
+  const minY = 1.22;
+  const maxBottom = 6.65;
+  for (const side of ["left", "right"]) {
+    const sideLabels = labels.filter((label) => label.side === side).sort((left, right) => left.anchor.y - right.anchor.y);
+    let nextY = minY;
+    for (const label of sideLabels) {
+      const desiredY = Math.max(minY, Math.min(maxBottom - boxHeight, label.anchor.y - boxHeight / 2));
+      const y = Math.max(desiredY, nextY);
+      label.box = { x: side === "left" ? 0.48 : 10.08, y, w: 2.78, h: boxHeight };
+      nextY = y + boxHeight + gap;
+    }
+    const overflow = sideLabels.length ? sideLabels.at(-1).box.y + boxHeight - maxBottom : 0;
+    if (overflow > 0) {
+      for (const label of sideLabels) label.box.y -= overflow;
+    }
+    for (const label of sideLabels) {
+      label.attachment = {
+        x: side === "left" ? label.box.x + label.box.w + 0.06 : label.box.x - 0.06,
+        y: label.box.y + label.box.h / 2,
+      };
+      label.elbow = {
+        x: side === "left" ? 3.48 : 9.86,
+        y: label.attachment.y,
+      };
+    }
+  }
+  return labels;
+}
+
+
+function addLineBetween(slide, pptx, from, to) {
+  const deltaX = to.x - from.x;
+  const deltaY = to.y - from.y;
+  slide.addShape(pptx.ShapeType.line, {
+    x: Math.min(from.x, to.x),
+    y: Math.min(from.y, to.y),
+    w: Math.max(Math.abs(deltaX), 0.001),
+    h: Math.max(Math.abs(deltaY), 0.001),
+    flipV: deltaX * deltaY < 0,
+    line: { color: colors.muted, width: 1.05 },
+  });
+}
+
+
+function addSiteDistribution(slide, pptx, modelSlide) {
+  const rows = modelSlide.data.departments;
+  const palette = [colors.blue, "ED7D31", "A5A5A5", "FFC000", "70AD47", "8064A2", "9E480E"];
+  slide.addChart(pptx.ChartType.pie, [{
+    name: "Vehicles",
+    labels: rows.map((row) => String(row[0])),
+    values: rows.map((row) => Number(row[1] ?? 0)),
+  }], {
+    x: 3.42, y: 0.92, w: 6.5, h: 5.95,
+    showTitle: false,
+    showLegend: false,
+    showValue: false,
+    showLabel: false,
+    showPercent: false,
+    showLeaderLines: false,
+    firstSliceAng: 120,
+    chartColors: palette,
+    dataBorder: { color: colors.white, pt: 1 },
+    dataNoEffects: true,
+    border: { color: colors.white, pt: 0 },
+  });
+
+  for (const label of siteDistributionLabelLayout(rows)) {
+    addLineBetween(slide, pptx, label.anchor, label.elbow);
+    addLineBetween(slide, pptx, label.elbow, label.attachment);
+    slide.addText(`${label.name}\n${number(label.value)} vehicles (${label.percentText})`, {
+      x: label.box.x,
+      y: label.box.y,
+      w: label.box.w,
+      h: label.box.h,
+      fontFace: font,
+      fontSize: 10.5,
+      bold: true,
+      color: colors.text,
+      align: label.side === "left" ? "right" : "left",
+      valign: "mid",
+      margin: 0.02,
+      breakLine: false,
+      fit: "shrink",
+    });
+  }
+}
+
+
 function addCover(slide, model) {
   slide.background = { color: colors.white };
   slide.addImage({ data: COVER_BACKGROUND_DATA, x: 0, y: 0, w: 13.333, h: 7.5 });
@@ -179,7 +295,7 @@ export function buildDeck(model) {
     }
     addContentFrame(slide, modelSlide.title, index + 1);
     if (modelSlide.kind === "classic_vehicle_numbers") addVehicleNumbers(slide, modelSlide);
-    else if (modelSlide.kind === "classic_site_distribution") addChart(slide, pptx, pptx.ChartType.doughnut, modelSlide.data.departments, { x: 2.25, y: 1.05, w: 8.8, h: 5.75, showLegend: true, legendPos: "b", legendFontSize: 9, showValue: true, showPercent: true });
+    else if (modelSlide.kind === "classic_site_distribution") addSiteDistribution(slide, pptx, modelSlide);
     else if (modelSlide.kind === "classic_shift_table") addShiftTable(slide, modelSlide);
     else if (modelSlide.kind === "classic_year_comparison") addComparisonTable(slide, modelSlide, ["PREVIOUS YEAR", "CURRENT YEAR"]);
     else if (modelSlide.kind === "classic_rejection_comparison") addComparisonTable(slide, modelSlide, ["PREVIOUS YEAR", "CURRENT YEAR"]);
