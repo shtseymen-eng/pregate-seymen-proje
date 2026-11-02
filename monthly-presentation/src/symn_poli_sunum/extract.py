@@ -312,8 +312,7 @@ def extract_pregate_report(path: str | Path) -> PregateReport:
             elif department and active_shift and normalize_label(active_shift) != "TOTAL":
                 department_name = str(row[3]).strip()
                 monthly_values = tuple(_optional_int(row[column - 1]) or 0 for column in month_columns)
-                row_total = _optional_int(row[14])
-                shift_rows.append((active_shift, department_name, monthly_values, row_total or sum(monthly_values)))
+                shift_rows.append((active_shift, department_name, monthly_values, sum(monthly_values)))
 
         return PregateReport(
             year=year,

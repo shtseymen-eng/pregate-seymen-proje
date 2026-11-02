@@ -281,6 +281,34 @@ def _classic_warning_notes(warnings: tuple[DataWarning, ...]) -> tuple[str, ...]
     return tuple(notes)
 
 
+def _summarize_classic_reasons(
+    rows: tuple[tuple[str, int], ...],
+    max_rows: int = 16,
+) -> tuple[tuple[str, int], ...]:
+    ordered = tuple(sorted(rows, key=lambda item: (-item[1], normalize_label(item[0]))))
+    if len(ordered) <= max_rows:
+        return ordered
+    visible = ordered[: max_rows - 1]
+    other_total = sum(count for _label, count in ordered[max_rows - 1 :])
+    return (*visible, ("Other reasons", other_total))
+
+
+def _summarize_rejection_rows(
+    rows: tuple[tuple[Any, ...], ...],
+    max_rows: int = 39,
+) -> tuple[tuple[tuple[Any, ...], ...], int]:
+    if len(rows) <= max_rows:
+        return rows, 0
+    visible = rows[: max_rows - 1]
+    grouped = rows[max_rows - 1 :]
+    numeric_columns = len(rows[0]) - 1
+    aggregate = (
+        "OTHER LOGISTICS COMPANIES",
+        *(sum(int(row[column]) for row in grouped) for column in range(1, numeric_columns + 1)),
+    )
+    return (*visible, aggregate), len(grouped)
+
+
 def build_slide_model(report: PregateReport, split: VehicleSplit) -> SlideModel:
     period = validate_periods(report, split)
     warnings = _warnings(report, split)
@@ -583,13 +611,11 @@ def build_classic_pregate_model(report: PregateReport, split: VehicleSplit) -> S
             key=lambda item: (-item[1], normalize_label(item[0])),
         )
     )
-    translated_empty_reasons = tuple(
-        (
-            _EMPTY_REASON_LABELS_EN.get(normalize_label(label).rstrip("."), str(label).strip()),
-            count,
-        )
-        for label, count in report.empty_reasons
-    )
+    translated_reason_totals: dict[str, int] = {}
+    for label, count in report.empty_reasons:
+        translated = _EMPTY_REASON_LABELS_EN.get(normalize_label(label).rstrip("."), str(label).strip())
+        translated_reason_totals[translated] = translated_reason_totals.get(translated, 0) + count
+    translated_empty_reasons = _summarize_classic_reasons(tuple(translated_reason_totals.items()))
     current_month_total = next(
         (
             value
@@ -611,7 +637,8 @@ def build_classic_pregate_model(report: PregateReport, split: VehicleSplit) -> S
             key=lambda row: (-int(row[-2]), normalize_label(row[0])),
         )
     )
-    rejection_split = min(20, len(rejection_rows))
+    rejection_rows, grouped_rejection_company_count = _summarize_rejection_rows(rejection_rows)
+    rejection_split = (len(rejection_rows) + 1) // 2
     previous_year = report.year - 1
     rejection_reason_headers = tuple(
         _REJECTION_REASON_LABELS_EN.get(normalize_label(header), str(header).strip())
@@ -741,6 +768,14 @@ def build_classic_pregate_model(report: PregateReport, split: VehicleSplit) -> S
                     "Each slide preserves the scope of its source worksheet; totals from different scopes are not combined.",
                     f"Ravago is separated only within Alişan carrier records: {split.ravago} Ravago and {split.alisan} other Alişan records.",
                     "All values are aggregated; plate, driver and phone details are excluded.",
+                    *(
+                        (
+                            f"Rejection detail tables show 38 companies separately; the remaining "
+                            f"{grouped_rejection_company_count} companies are grouped as Other Logistics Companies.",
+                        )
+                        if grouped_rejection_company_count
+                        else ()
+                    ),
                     *_classic_warning_notes(warnings),
                 )
             },

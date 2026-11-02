@@ -168,6 +168,26 @@ export function classicRowFills(count) {
 }
 
 
+export function fitClassicTableRowHeights(rowCount, {
+  totalHeight,
+  headerHeight,
+  footerHeight = 0,
+  maxBodyHeight,
+}) {
+  const footerRows = footerHeight > 0 ? 1 : 0;
+  const bodyRows = Math.max(0, rowCount - 1 - footerRows);
+  const availableBodyHeight = Math.max(0, totalHeight - headerHeight - footerHeight);
+  const bodyHeight = bodyRows > 0
+    ? Math.min(maxBodyHeight, Math.floor(availableBodyHeight / bodyRows * 100) / 100)
+    : 0;
+  return [
+    headerHeight,
+    ...Array(bodyRows).fill(bodyHeight),
+    ...(footerRows ? [footerHeight] : []),
+  ];
+}
+
+
 export function classicPieLabelLayout(rows) {
   const total = rows.reduce((sum, row) => sum + Number(row[1] || 0), 0);
   const leftAnchorY = [510, 456, 406, 358, 312];
@@ -808,9 +828,14 @@ function addClassicEmptyReasons(slide, modelSlide, theme, applyPresentationChart
     [610, 110],
     theme,
     {
-      bodyFontPt: 8.8,
+      bodyFontPt: values.length > 14 ? 7.5 : 8.8,
       totalRow: values.length - 1,
-      rowHeights: [34, ...Array(values.length - 2).fill(33), 36],
+      rowHeights: fitClassicTableRowHeights(values.length, {
+        totalHeight: 540,
+        headerHeight: 34,
+        footerHeight: 36,
+        maxBodyHeight: 33,
+      }),
     },
   );
   const chartRows = data.reasons.slice(0, 5);
@@ -915,8 +940,12 @@ function addClassicRejectionDetails(slide, modelSlide, theme) {
     [330, ...Array(data.headers.length).fill(110), 164, 164],
     theme,
     {
-      bodyFontPt: 7.2,
-      rowHeights: [34, ...Array(values.length - 1).fill(25)],
+      bodyFontPt: values.length > 24 ? 6.6 : 7.2,
+      rowHeights: fitClassicTableRowHeights(values.length, {
+        totalHeight: 552,
+        headerHeight: 34,
+        maxBodyHeight: 25,
+      }),
     },
   );
 }

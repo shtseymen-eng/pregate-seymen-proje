@@ -12,6 +12,8 @@ from symn_poli_sunum.cli import main
 
 PREGATE_SOURCE = Path("/Users/seymen/Downloads/PregateSunum_Tam (1).xlsx")
 VEHICLE_SOURCE = Path("/Users/seymen/Downloads/Arac_Kayit_Sorgulama (4).xlsx")
+LATEST_PREGATE_SOURCE = Path("/Users/seymen/Downloads/PregateSunum_Tam (2).xlsx")
+LATEST_VEHICLE_SOURCE = Path("/Users/seymen/Downloads/Arac_Kayit_Sorgulama (5).xlsx")
 
 
 @unittest.skipUnless(
@@ -110,6 +112,46 @@ class ClassicPregateDeckTests(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             self.assertEqual(payload["output_filename"], "EKİM 2026 PREGATE SUNUM.pptx")
             self.assertEqual(len(payload["slides"]), 13)
+
+
+@unittest.skipUnless(
+    LATEST_PREGATE_SOURCE.is_file() and LATEST_VEHICLE_SOURCE.is_file(),
+    "Yerel güncel Ekim Excel örnekleri bulunamadı",
+)
+class DenseOctoberDeckTests(unittest.TestCase):
+    def test_shift_row_year_totals_ignore_later_month_columns(self) -> None:
+        report = extract_module.extract_pregate_report(LATEST_PREGATE_SOURCE)
+
+        self.assertEqual(report.shift_months[-1], "October")
+        self.assertTrue(report.shift_rows)
+        for _shift, _department, monthly_values, year_total in report.shift_rows:
+            self.assertEqual(year_total, sum(monthly_values))
+
+    def test_dense_tables_preserve_totals_and_balance_two_detail_slides(self) -> None:
+        report = extract_module.extract_pregate_report(LATEST_PREGATE_SOURCE)
+        split = extract_module.extract_vehicle_split(LATEST_VEHICLE_SOURCE)
+        model = model_module.build_classic_pregate_model(report, split)
+        empty_reasons = next(slide for slide in model.slides if slide.kind == "classic_empty_reasons")
+        details = [slide for slide in model.slides if slide.kind == "classic_rejection_details"]
+
+        self.assertLessEqual(len(empty_reasons.data["reasons"]), 16)
+        self.assertEqual(
+            sum(count for _label, count in empty_reasons.data["reasons"]),
+            sum(count for _label, count in report.empty_reasons),
+        )
+        self.assertEqual(empty_reasons.data["reasons"][-1][0], "Other reasons")
+        self.assertLessEqual(abs(len(details[0].data["rows"]) - len(details[1].data["rows"])), 1)
+        displayed_rows = tuple(details[0].data["rows"]) + tuple(details[1].data["rows"])
+        self.assertLessEqual(len(details[0].data["rows"]), 20)
+        self.assertLessEqual(len(details[1].data["rows"]), 20)
+        self.assertIn("OTHER LOGISTICS COMPANIES", {row[0] for row in displayed_rows})
+        for column in range(1, len(report.carrier_rejection_rows[0])):
+            self.assertEqual(
+                sum(int(row[column]) for row in displayed_rows),
+                sum(int(row[column]) for row in report.carrier_rejection_rows),
+            )
+        notes = " ".join(model.slides[-1].data["notes"])
+        self.assertIn("grouped as Other Logistics Companies", notes)
 
 
 if __name__ == "__main__":

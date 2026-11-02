@@ -141,3 +141,23 @@ test("classic doughnut labels are placed outside the chart with every department
   assert.ok(labels.filter((label) => label.side === "left").every((label) => label.label.left + label.label.width <= 330));
   assert.ok(labels.filter((label) => label.side === "right").every((label) => label.label.left >= 930));
 });
+
+
+test("dense classic tables fit their declared height", () => {
+  const reasons = deckBuilder.fitClassicTableRowHeights(18, {
+    totalHeight: 540,
+    headerHeight: 34,
+    footerHeight: 36,
+    maxBodyHeight: 33,
+  });
+  const rejectionDetails = deckBuilder.fitClassicTableRowHeights(31, {
+    totalHeight: 552,
+    headerHeight: 34,
+    maxBodyHeight: 25,
+  });
+
+  assert.ok(reasons.reduce((sum, height) => sum + height, 0) <= 540);
+  assert.ok(rejectionDetails.reduce((sum, height) => sum + height, 0) <= 552);
+  assert.equal(reasons.length, 18);
+  assert.equal(rejectionDetails.length, 31);
+});
