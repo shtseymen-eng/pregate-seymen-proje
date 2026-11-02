@@ -57,6 +57,20 @@ function optionalInteger(rawValue) {
 }
 
 
+function optionalCellInteger(sheet, row, column, fieldName) {
+  const sourceCell = cell(sheet, row, column);
+  if (sourceCell?.f && (sourceCell.v === undefined || sourceCell.v === null || sourceCell.v === "")) {
+    throw new Error(`${fieldName} için formülün kaydedilmiş sonuç değeri bulunamadı.`);
+  }
+  return optionalInteger(sourceCell?.v);
+}
+
+
+function hasNormalizedToken(valueToCheck, token) {
+  return new RegExp(`(?:^|[^A-Z0-9])${token}(?:$|[^A-Z0-9])`, "u").test(valueToCheck);
+}
+
+
 function totalRow(sheet, labelColumn = 2) {
   const range = bounds(sheet);
   for (let row = range.s.r + 1; row <= range.e.r + 1; row += 1) {
@@ -89,10 +103,12 @@ function headerMap(sheet, headerRow) {
 }
 
 
-function requireHeader(headers, displayName) {
-  const column = headers.get(normalizeLabel(displayName));
-  if (!column) throw new Error(`Gerekli sütun bulunamadı: ${displayName}`);
-  return column;
+function requireHeader(headers, displayName, aliases = []) {
+  for (const candidate of [displayName, ...aliases]) {
+    const column = headers.get(normalizeLabel(candidate));
+    if (column) return column;
+  }
+  throw new Error(`Gerekli sütun bulunamadı: ${displayName}`);
 }
 
 
@@ -101,8 +117,9 @@ function readCountRows(sheet, valueColumn) {
   const range = bounds(sheet);
   for (let row = 5; row <= range.e.r + 1; row += 1) {
     const label = value(sheet, row, 2);
-    const count = optionalInteger(value(sheet, row, valueColumn));
-    if (label !== null && label !== "" && count !== null) result.push([String(label).trim(), count]);
+    if (label === null || label === "") continue;
+    const count = optionalCellInteger(sheet, row, valueColumn, String(label).trim());
+    if (count !== null) result.push([String(label).trim(), count]);
   }
   return result;
 }
@@ -133,28 +150,57 @@ export function parsePregateWorkbook(bytes) {
 
   const summarySheet = requiredSheet(workbook, "Sheet1");
   const period = periodFromTitle(value(summarySheet, 2, 2));
-  const summaryTotalRow = totalRow(summarySheet);
-  const departments = rowsUntilTotal(summarySheet, 5).map((row) => [
-    String(value(summarySheet, row, 2)).trim(),
-    requiredInteger(summarySheet, row, 3, `${value(summarySheet, row, 2)} onay`),
-    requiredInteger(summarySheet, row, 4, `${value(summarySheet, row, 2)} ret`),
-    requiredInteger(summarySheet, row, 5, `${value(summarySheet, row, 2)} toplam`),
+  const summaryHeaders = headerMap(summarySheet, 4);
+  const summaryDepartmentColumn = requireHeader(summaryHeaders, "DEPARTMENT");
+  const summaryApprovedColumn = requireHeader(summaryHeaders, "APPROVED");
+  const summaryRejectedColumn = requireHeader(summaryHeaders, "REJECTED");
+  const summaryTotalColumn = requireHeader(summaryHeaders, "TOTAL");
+  const summaryTotalRow = totalRow(summarySheet, summaryDepartmentColumn);
+  const departments = rowsUntilTotal(summarySheet, 5, summaryDepartmentColumn).map((row) => [
+    String(value(summarySheet, row, summaryDepartmentColumn)).trim(),
+    requiredInteger(summarySheet, row, summaryApprovedColumn, `${value(summarySheet, row, summaryDepartmentColumn)} onay`),
+    requiredInteger(summarySheet, row, summaryRejectedColumn, `${value(summarySheet, row, summaryDepartmentColumn)} ret`),
+    requiredInteger(summarySheet, row, summaryTotalColumn, `${value(summarySheet, row, summaryDepartmentColumn)} toplam`),
   ]);
 
   const comparisonSheet = requiredSheet(workbook, "Sheet2");
-  const comparisonTotalRow = totalRow(comparisonSheet);
-  const yearComparison = rowsUntilTotal(comparisonSheet, 5).map((row) => [
-    String(value(comparisonSheet, row, 2)).trim(),
-    requiredInteger(comparisonSheet, row, 3, `${value(comparisonSheet, row, 2)} geçen yıl`),
-    requiredInteger(comparisonSheet, row, 4, `${value(comparisonSheet, row, 2)} bu yıl`),
+  const comparisonHeaders = headerMap(comparisonSheet, 4);
+  const comparisonDepartmentColumn = requireHeader(comparisonHeaders, "DEPARTMENT");
+  const comparisonPreviousColumn = requireHeader(
+    comparisonHeaders,
+    "PREVIOUS",
+    ["LAST YEAR (SAME PERIOD)", "GEÇEN YIL (AYNI DÖNEM)"],
+  );
+  const comparisonCurrentColumn = requireHeader(
+    comparisonHeaders,
+    "CURRENT",
+    ["CURRENT YEAR", "BU YIL"],
+  );
+  const comparisonTotalRow = totalRow(comparisonSheet, comparisonDepartmentColumn);
+  const yearComparison = rowsUntilTotal(comparisonSheet, 5, comparisonDepartmentColumn).map((row) => [
+    String(value(comparisonSheet, row, comparisonDepartmentColumn)).trim(),
+    requiredInteger(comparisonSheet, row, comparisonPreviousColumn, `${value(comparisonSheet, row, comparisonDepartmentColumn)} geçen yıl`),
+    requiredInteger(comparisonSheet, row, comparisonCurrentColumn, `${value(comparisonSheet, row, comparisonDepartmentColumn)} bu yıl`),
   ]);
 
   const rejectionSheet = requiredSheet(workbook, "Sheet4");
-  const rejectionTotalRow = totalRow(rejectionSheet);
-  const rejectionComparison = rowsUntilTotal(rejectionSheet, 5).map((row) => [
-    String(value(rejectionSheet, row, 2)).trim(),
-    requiredInteger(rejectionSheet, row, 4, `${value(rejectionSheet, row, 2)} geçen yıl ret`),
-    requiredInteger(rejectionSheet, row, 5, `${value(rejectionSheet, row, 2)} bu yıl ret`),
+  const rejectionHeaders = headerMap(rejectionSheet, 4);
+  const rejectionDepartmentColumn = requireHeader(rejectionHeaders, "DEPARTMENT");
+  const rejectionPreviousColumn = requireHeader(
+    rejectionHeaders,
+    "PREVIOUS",
+    ["LAST YEAR (SAME PERIOD)", "GEÇEN YIL (AYNI DÖNEM)"],
+  );
+  const rejectionCurrentColumn = requireHeader(
+    rejectionHeaders,
+    "CURRENT",
+    ["CURRENT YEAR", "BU YIL"],
+  );
+  const rejectionTotalRow = totalRow(rejectionSheet, rejectionDepartmentColumn);
+  const rejectionComparison = rowsUntilTotal(rejectionSheet, 5, rejectionDepartmentColumn).map((row) => [
+    String(value(rejectionSheet, row, rejectionDepartmentColumn)).trim(),
+    requiredInteger(rejectionSheet, row, rejectionPreviousColumn, `${value(rejectionSheet, row, rejectionDepartmentColumn)} geçen yıl ret`),
+    requiredInteger(rejectionSheet, row, rejectionCurrentColumn, `${value(rejectionSheet, row, rejectionDepartmentColumn)} bu yıl ret`),
   ]);
 
   const reasonSheet = requiredSheet(workbook, "Sheet8");
@@ -171,16 +217,21 @@ export function parsePregateWorkbook(bytes) {
     const label = value(reasonSheet, row, 2);
     if (label === null || label === "") {
       const candidate = reasonColumns
-        .map((column, index) => [rejectionReasonHeaders[index], optionalInteger(value(reasonSheet, row, column))])
+        .map((column, index) => [
+          rejectionReasonHeaders[index],
+          optionalCellInteger(reasonSheet, row, column, `${rejectionReasonHeaders[index]} toplam ret`),
+        ])
         .filter(([, count]) => count !== null);
       if (candidate.length) rejectionReasons = candidate;
       continue;
     }
-    const rejected = optionalInteger(value(reasonSheet, row, rejectedColumn));
-    const registered = optionalInteger(value(reasonSheet, row, registeredColumn));
+    const rejected = optionalCellInteger(reasonSheet, row, rejectedColumn, `${label} Toplam Red`);
+    const registered = optionalCellInteger(reasonSheet, row, registeredColumn, `${label} Toplam Kayıt`);
     if (rejected === null || registered === null) continue;
     const name = String(label).trim();
-    const reasonValues = reasonColumns.map((column) => optionalInteger(value(reasonSheet, row, column)) ?? 0);
+    const reasonValues = reasonColumns.map((column, index) => (
+      optionalCellInteger(reasonSheet, row, column, `${label} ${rejectionReasonHeaders[index]}`) ?? 0
+    ));
     carriers.push([name, rejected, registered]);
     carrierRejectionRows.push([name, ...reasonValues, rejected, registered]);
   }
@@ -212,25 +263,27 @@ export function parsePregateWorkbook(bytes) {
       monthlyTotals = monthColumns.map(({ column, name }) => [name, requiredInteger(trendSheet, row, column, `${name} toplam`)]);
     } else if (departmentKey === "TOTAL" && activeShift && normalizeLabel(activeShift) !== "TOTAL") {
       const currentColumn = monthColumns.find(({ number }) => number === period.month).column;
-      const current = optionalInteger(value(trendSheet, row, currentColumn));
+      const current = optionalCellInteger(trendSheet, row, currentColumn, `${activeShift} rapor ayı toplamı`);
       if (current !== null) currentShiftTotals.push([activeShift, current]);
     } else if (departmentKey && activeShift && normalizeLabel(activeShift) !== "TOTAL") {
-      const monthValues = monthColumns.map(({ column }) => optionalInteger(value(trendSheet, row, column)) ?? 0);
+      const monthValues = monthColumns.map(({ column, name }) => (
+        optionalCellInteger(trendSheet, row, column, `${String(departmentCell).trim()} ${name}`) ?? 0
+      ));
       shiftRows.push([activeShift, String(departmentCell).trim(), monthValues, monthValues.reduce((sum, count) => sum + count, 0)]);
     }
   }
   const currentMonthTotal = monthlyTotals.find((_, index) => monthColumns[index]?.number === period.month)?.[1]
-    ?? requiredInteger(summarySheet, summaryTotalRow, 5, "Toplam araç");
+    ?? requiredInteger(summarySheet, summaryTotalRow, summaryTotalColumn, "Toplam araç");
 
   return {
     period,
-    summaryTotal: requiredInteger(summarySheet, summaryTotalRow, 5, "Toplam araç"),
-    summaryApproved: requiredInteger(summarySheet, summaryTotalRow, 3, "Onaylanan araç"),
-    summaryRejected: requiredInteger(summarySheet, summaryTotalRow, 4, "Reddedilen araç"),
-    comparisonTotal: requiredInteger(comparisonSheet, comparisonTotalRow, 4, "Karşılaştırma cari toplam"),
-    comparisonPreviousTotal: requiredInteger(comparisonSheet, comparisonTotalRow, 3, "Karşılaştırma önceki toplam"),
-    rejectionComparisonTotal: requiredInteger(rejectionSheet, rejectionTotalRow, 5, "Ret karşılaştırma cari toplam"),
-    rejectionComparisonPreviousTotal: requiredInteger(rejectionSheet, rejectionTotalRow, 4, "Ret karşılaştırma önceki toplam"),
+    summaryTotal: requiredInteger(summarySheet, summaryTotalRow, summaryTotalColumn, "Toplam araç"),
+    summaryApproved: requiredInteger(summarySheet, summaryTotalRow, summaryApprovedColumn, "Onaylanan araç"),
+    summaryRejected: requiredInteger(summarySheet, summaryTotalRow, summaryRejectedColumn, "Reddedilen araç"),
+    comparisonTotal: requiredInteger(comparisonSheet, comparisonTotalRow, comparisonCurrentColumn, "Karşılaştırma cari toplam"),
+    comparisonPreviousTotal: requiredInteger(comparisonSheet, comparisonTotalRow, comparisonPreviousColumn, "Karşılaştırma önceki toplam"),
+    rejectionComparisonTotal: requiredInteger(rejectionSheet, rejectionTotalRow, rejectionCurrentColumn, "Ret karşılaştırma cari toplam"),
+    rejectionComparisonPreviousTotal: requiredInteger(rejectionSheet, rejectionTotalRow, rejectionPreviousColumn, "Ret karşılaştırma önceki toplam"),
     departments,
     yearComparison,
     rejectionComparison,
@@ -267,9 +320,9 @@ export function parseVehicleWorkbook(bytes) {
     periods.add(`${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`);
     const carrier = normalizeLabel(value(sheet, row, carrierColumn));
     const company = normalizeLabel(value(sheet, row, companyColumn));
-    if (!carrier.includes("ALISAN")) continue;
+    if (!hasNormalizedToken(carrier, "ALISAN")) continue;
     alisanCarrierTotal += 1;
-    if (company.includes("RAVAGO")) ravago += 1;
+    if (hasNormalizedToken(company, "RAVAGO")) ravago += 1;
     else alisan += 1;
   }
   if (!periods.size) throw new Error("Araç kayıt raporunda geçerli Kayıt Tarihi bulunamadı.");

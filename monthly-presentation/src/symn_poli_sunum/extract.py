@@ -139,6 +139,10 @@ def normalize_label(value: object) -> str:
     return re.sub(r"\s+", " ", text)
 
 
+def _has_normalized_token(value: str, token: str) -> bool:
+    return re.search(rf"(?<![A-Z0-9]){re.escape(token)}(?![A-Z0-9])", value) is not None
+
+
 def _period_from_title(value: object) -> tuple[int, int]:
     normalized = normalize_label(value)
     year_match = re.search(r"\b(20\d{2})\b", normalized)
@@ -404,8 +408,8 @@ def extract_vehicle_split(path: str | Path) -> VehicleSplit:
             carrier = normalize_label(row[carrier_column - 1] if len(row) >= carrier_column else None)
             company = normalize_label(row[company_column - 1] if len(row) >= company_column else None)
 
-            is_ravago = "RAVAGO" in company
-            is_alisan_carrier = "ALISAN" in carrier
+            is_ravago = _has_normalized_token(company, "RAVAGO")
+            is_alisan_carrier = _has_normalized_token(carrier, "ALISAN")
             if is_alisan_carrier:
                 alisan_carrier_total += 1
                 if is_ravago:
@@ -473,8 +477,8 @@ def extract_vehicle_presentation(path: str | Path) -> VehiclePresentationReport:
             vehicle_types[vehicle_type] = vehicle_types.get(vehicle_type, 0) + 1
             carriers[carrier] = carriers.get(carrier, 0) + 1
 
-            is_ravago = "RAVAGO" in company_key
-            is_alisan_carrier = "ALISAN" in carrier_key
+            is_ravago = _has_normalized_token(company_key, "RAVAGO")
+            is_alisan_carrier = _has_normalized_token(carrier_key, "ALISAN")
             if is_alisan_carrier:
                 alisan_carrier_total += 1
                 if is_ravago:

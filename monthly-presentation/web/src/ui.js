@@ -10,6 +10,18 @@ function setHidden(element, hidden) {
 }
 
 
+export function describeWorkbookSelection(file, role) {
+  if (!file) return { ready: false, label: "Dosya seçilmedi" };
+  if (!file.name?.toLocaleLowerCase("tr-TR").endsWith(".xlsx")) {
+    return {
+      ready: false,
+      label: `${file.name ?? "Seçilen dosya"} — ${role} için yalnızca .xlsx dosyası seçin.`,
+    };
+  }
+  return { ready: true, label: file.name };
+}
+
+
 export function mountPresentationApp(root) {
   const pregateInput = root.querySelector("#pregate-file");
   const vehicleInput = root.querySelector("#vehicle-file");
@@ -34,10 +46,12 @@ export function mountPresentationApp(root) {
   function refresh() {
     const pregate = selected(pregateInput);
     const vehicles = selected(vehicleInput);
-    pregateName.textContent = pregate?.name ?? "Dosya seçilmedi";
-    vehicleName.textContent = vehicles?.name ?? "Dosya seçilmedi";
-    pregateName.dataset.ready = String(Boolean(pregate));
-    vehicleName.dataset.ready = String(Boolean(vehicles));
+    const pregateState = describeWorkbookSelection(pregate, "Pregate sunum Excel'i");
+    const vehicleState = describeWorkbookSelection(vehicles, "Araç kayıt sorgusu Excel'i");
+    pregateName.textContent = pregateState.label;
+    vehicleName.textContent = vehicleState.label;
+    pregateName.dataset.ready = String(pregateState.ready);
+    vehicleName.dataset.ready = String(vehicleState.ready);
     createButton.disabled = busy || !canCreatePresentation(pregate, vehicles);
   }
 

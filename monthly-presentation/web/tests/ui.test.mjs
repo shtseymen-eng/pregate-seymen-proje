@@ -36,6 +36,19 @@ test("create action is enabled only when both xlsx roles are ready", async () =>
 });
 
 
+test("invalid workbook selections expose a role-specific xlsx message", async () => {
+  const { describeWorkbookSelection } = await import("../src/ui.js");
+  assert.equal(typeof describeWorkbookSelection, "function");
+  assert.deepEqual(
+    describeWorkbookSelection({ name: "Pregate.csv" }, "Pregate sunum Excel'i"),
+    {
+      ready: false,
+      label: "Pregate.csv — Pregate sunum Excel'i için yalnızca .xlsx dosyası seçin.",
+    },
+  );
+});
+
+
 test("presentation creation reports the Turkish progress sequence and retains the result", async () => {
   const { createPresentationFromFiles, downloadLastDeck } = await appModule();
   assert.equal(typeof createPresentationFromFiles, "function");

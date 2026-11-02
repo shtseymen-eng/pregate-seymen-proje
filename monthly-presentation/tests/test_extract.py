@@ -75,6 +75,7 @@ class ExtractTests(unittest.TestCase):
                     [None, "2026-09-01", *([None] * 15), "ALIŞAN LOJİSTİK A.Ş.", None, None, "RAVAGO"],
                     [None, "2026-09-02", *([None] * 15), "BAŞKA NAKLİYECİ", None, None, "RAVAGO"],
                     [None, "2026-09-03", *([None] * 15), "ALIŞAN LOJİSTİK A.Ş.", None, None, "BAŞKA FİRMA"],
+                    [None, "2026-09-04", *([None] * 15), "ÇALIŞAN TAŞIMACILIK", None, None, "RAVAGO"],
                 ],
             )
 

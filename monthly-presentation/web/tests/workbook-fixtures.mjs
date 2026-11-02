@@ -11,7 +11,14 @@ function addSheet(workbook, name, rows) {
 }
 
 
-export function pregateWorkbookBytes({ month = "OCTOBER", year = 2026, missingCachedTotal = false } = {}) {
+export function pregateWorkbookBytes({
+  month = "OCTOBER",
+  year = 2026,
+  missingCachedTotal = false,
+  missingCachedShiftMonth = false,
+  missingCachedEmptyReason = false,
+  missingCachedRejectionReason = false,
+} = {}) {
   const workbook = utils.book_new();
   const months = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER"];
   const monthlyValues = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 99];
@@ -66,11 +73,14 @@ export function pregateWorkbookBytes({ month = "OCTOBER", year = 2026, missingCa
     [null, null, "TOTAL", null, ...monthlyValues],
   ]);
   addSheet(workbook, "Sheet14", [[]]);
+  if (missingCachedShiftMonth) workbook.Sheets.Sheet10.E5 = { t: "n", f: "SUM(E5:E5)" };
+  if (missingCachedEmptyReason) workbook.Sheets.Sheet6.D5 = { t: "n", f: "SUM(D5:D5)" };
+  if (missingCachedRejectionReason) workbook.Sheets.Sheet8.C5 = { t: "n", f: "SUM(C5:C5)" };
   return new Uint8Array(write(workbook, { type: "array", bookType: "xlsx", cellDates: true }));
 }
 
 
-export function vehicleWorkbookBytes({ month = 9, mixedPeriods = false } = {}) {
+export function vehicleWorkbookBytes({ month = 9, mixedPeriods = false, lookalikeCarrier = false } = {}) {
   const workbook = utils.book_new();
   const nextMonth = mixedPeriods ? month + 1 : month;
   addSheet(workbook, "Arac_Kayit_Sorgulama", [
@@ -79,6 +89,9 @@ export function vehicleWorkbookBytes({ month = 9, mixedPeriods = false } = {}) {
     [new Date(2026, month - 1, 1), "ALİŞAN LOJİSTİK", "RAVAGO"],
     [new Date(2026, month - 1, 2), "ALİŞAN LOJİSTİK", "BAŞKA FİRMA"],
     [new Date(2026, nextMonth - 1, 3), "OTHER CARRIER", "RAVAGO"],
+    ...(lookalikeCarrier
+      ? [[new Date(2026, month - 1, 4), "ÇALIŞAN TAŞIMACILIK", "RAVAGO"]]
+      : []),
   ]);
   return new Uint8Array(write(workbook, { type: "array", bookType: "xlsx", cellDates: true }));
 }
