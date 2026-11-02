@@ -9,6 +9,16 @@ Tek GitHub Pages uygulaması içinde üç ana bölüm:
 ## Yayınlama
 Repo kökünde `index.html` bulunmalıdır. GitHub Pages: `main` / `/(root)`.
 
+## Pregate aylık sunum oluşturucu
+
+Ana ekrandaki **Aylık Pregate Sunumu Oluştur** bağlantısı veya Pregate menüsündeki **Aylık Sunum Oluştur** seçeneği, iki Excel dosyasından 13 slaytlık PowerPoint hazırlar.
+
+- Ana Pregate Excel dosyası tüm analizlerin kaynağıdır.
+- Araç Kayıt Sorgulama Excel dosyası yalnızca Alışan kayıtlarını Ravago ve diğer Alışan olarak ayırır.
+- Dosyalar yalnızca kullanıcının tarayıcısında işlenir ve sunucuya gönderilmez.
+
+Yayın adresi: [Pregate aylık sunum oluşturucu](https://shtseymen-eng.github.io/pregate-seymen-proje/monthly-presentation/web/)
+
 ## Veri
 Demo verileri tarayıcı LocalStorage içinde saklanır. Üretim sürümünde backend, veritabanı, kullanıcı yetkilendirme, gerçek SMS, dosya depolama ve ERP/TOS entegrasyonları ayrıca uygulanmalıdır.
 

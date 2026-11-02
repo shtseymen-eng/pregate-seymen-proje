@@ -7,6 +7,14 @@ Bu proje her ay iki Excel dosyasından kurumsal PowerPoint sunumu üretir:
 
 ## En kolay kullanım
 
+### İnternet bağlantısı üzerinden
+
+[Pregate aylık sunum oluşturucuyu açın](https://shtseymen-eng.github.io/pregate-seymen-proje/monthly-presentation/web/), iki Excel dosyasını seçin ve **Sunumu Oluştur** düğmesine basın. Dönem dosyalardaki veriden otomatik belirlenir; sonuç `AY YIL PREGATE SUNUM.pptx` adıyla indirilir.
+
+Excel dosyaları tarayıcınızda yerel olarak işlenir. Dosya içeriği sunucuya yüklenmez, tarayıcı deposuna kaydedilmez ve GitHub'a gönderilmez.
+
+### Mac masaüstü üzerinden
+
 Mac'te `Pregate_Sunum_Olustur.command` dosyasına çift tıklayın. Açılan iki pencerede sırasıyla ana Pregate Excel dosyasını ve Araç Kayıt Sorgulama Excel dosyasını seçin.
 
 Tamamlanan sunum `outputs` klasörüne, `AY YIL PREGATE SUNUM.pptx` adıyla kaydedilir. Aynı aya ait mevcut bir sunum varsa silinmez; `work/backups` klasörüne tarih-saat eklenerek taşınır.
