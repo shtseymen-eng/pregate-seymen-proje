@@ -7,6 +7,7 @@ import { build } from "esbuild";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
+await import("./embed-brand-assets.mjs");
 const appEntry = path.join(root, "src", "app.js");
 let entryPoint = path.join(root, "src", "privacy.js");
 
