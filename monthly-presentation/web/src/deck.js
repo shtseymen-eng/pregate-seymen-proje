@@ -163,7 +163,7 @@ function addSiteDistribution(slide, pptx, modelSlide) {
     showLabel: false,
     showPercent: false,
     showLeaderLines: false,
-    firstSliceAng: 120,
+    firstSliceAng: 210,
     chartColors: palette,
     dataBorder: { color: colors.white, pt: 1 },
     dataNoEffects: true,

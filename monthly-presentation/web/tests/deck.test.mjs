@@ -123,6 +123,7 @@ test("slide 3 PowerPoint uses a filled native pie with editable callouts and lea
 
   assert.match(chartXml, /<c:pieChart>/u);
   assert.doesNotMatch(chartXml, /<c:doughnutChart>/u);
+  assert.match(chartXml, /<c:firstSliceAng val="210"\/>/u, "the PowerPoint rotation must match the manual leader-line geometry");
   for (const text of [
     "POLIPORT TERMINAL", "2,868 vehicles (63.7%)",
     "POLIPORT KURUYÜK ANTREPO", "651 vehicles (14.5%)",
