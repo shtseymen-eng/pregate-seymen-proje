@@ -20,9 +20,9 @@ test("root Pregate navigation links to the directly served monthly tool", async 
 test("direct tool page references production assets that exist in the Pages path", async () => {
   const html = await fs.readFile(path.join(webRoot, "index.html"), "utf8");
   const relativeAssets = [...html.matchAll(/(?:href|src)="((?:assets\/|styles\.css)[^"]*)"/gu)].map((match) => match[1]);
-  assert.deepEqual(relativeAssets.sort(), ["assets/app.js", "styles.css"]);
+  assert.deepEqual(relativeAssets.sort(), ["assets/app.js?v=20261104-1", "styles.css"]);
   for (const relativePath of relativeAssets) {
-    const stats = await fs.stat(path.join(webRoot, relativePath));
+    const stats = await fs.stat(path.join(webRoot, relativePath.split("?", 1)[0]));
     assert.ok(stats.isFile());
     assert.ok(stats.size > 100);
   }
