@@ -58,6 +58,7 @@ test("generated PowerPoint contains native tables and charts without sensitive r
   const slideXml = (await Promise.all(slideNames.map((name) => zip.file(name).async("string")))).join("\n");
   assert.match(await zip.file("ppt/slides/slide1.xml").async("string"), /<p:pic>/u);
   assert.ok((slideXml.match(/<a:tbl>/gu) ?? []).length >= 9, "expected native tables on the report slides");
+  assert.doesNotMatch(slideXml, /<a:tcPr\b[^>]*\banchor="mid"/u, "table vertical alignment must use the valid OOXML value ctr");
   assert.doesNotMatch(slideXml, /BACK UP|BLACKLIST|KANTAR|WEIGHBRIDGE|PLAKA|TELEFON|SÜRÜCÜ/iu);
   assert.equal(model.outputFilename, "EKİM 2026 PREGATE SUNUM.pptx");
 
@@ -134,4 +135,24 @@ test("slide 3 PowerPoint uses a filled native pie with editable callouts and lea
     "OTHER", "123 vehicles (2.7%)",
   ]) assert.ok(slideXml.includes(text), `slide 3 must contain editable text: ${text}`);
   assert.ok((slideXml.match(/<a:prstGeom prst="line">/gu) ?? []).length >= 14, "each callout needs two editable leader-line segments");
+});
+
+
+test("generated chart XML uses PowerPoint-compatible single-level categories and series ordering", async () => {
+  const { generateDeckBlob } = await deckModule();
+  assert.equal(typeof generateDeckBlob, "function");
+  const blob = await generateDeckBlob(sampleModel());
+  const zip = await JSZip.loadAsync(await blob.arrayBuffer());
+  const chartNames = Object.keys(zip.files).filter((name) => /^ppt\/charts\/chart\d+\.xml$/u.test(name));
+
+  for (const chartName of chartNames) {
+    const chartXml = await zip.file(chartName).async("string");
+    assert.doesNotMatch(chartXml, /<c:multiLvlStrRef>/u, `${chartName} must use a single-level string category reference`);
+    if (!chartXml.includes("<c:barChart>")) continue;
+    const seriesXml = chartXml.match(/<c:ser>([\s\S]*?)<\/c:ser>/u)?.[1] ?? "";
+    const firstPoint = seriesXml.indexOf("<c:dPt>");
+    const labels = seriesXml.indexOf("<c:dLbls>");
+    const categories = seriesXml.indexOf("<c:cat>");
+    assert.ok(firstPoint >= 0 && labels > firstPoint && categories > labels, `${chartName} data labels must follow data points and precede categories`);
+  }
 });

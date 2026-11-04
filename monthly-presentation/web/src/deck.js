@@ -9,12 +9,12 @@ const { colors, font } = DECK_THEME;
 
 
 function headerCell(text) {
-  return { text: String(text), options: { bold: true, color: colors.white, fill: colors.sky, align: "center", valign: "mid" } };
+  return { text: String(text), options: { bold: true, color: colors.white, fill: colors.sky, align: "center", valign: "middle" } };
 }
 
 
 function totalCell(text, align = "center") {
-  return { text: String(text), options: { bold: true, color: colors.red, fill: colors.white, align, valign: "mid" } };
+  return { text: String(text), options: { bold: true, color: colors.red, fill: colors.white, align, valign: "middle" } };
 }
 
 
@@ -34,7 +34,7 @@ function tableOptions({ x = 0.38, y = 0.88, w = 12.57, h = 5.96, colW, rowH, fon
     color: colors.text,
     margin,
     border: { type: "solid", color: colors.line, pt: 0.6 },
-    valign: "mid",
+    valign: "middle",
     autoFit: false,
     fill: colors.white,
   };
@@ -183,7 +183,7 @@ function addSiteDistribution(slide, pptx, modelSlide) {
       bold: true,
       color: colors.text,
       align: label.side === "left" ? "right" : "left",
-      valign: "mid",
+      valign: "middle",
       margin: 0.02,
       breakLine: false,
       fit: "shrink",
@@ -310,6 +310,32 @@ export function buildDeck(model) {
 }
 
 
+function repairPowerPointChartXml(xml) {
+  const singleLevelCategories = xml.replace(
+    /<c:multiLvlStrRef>([\s\S]*?)<\/c:multiLvlStrRef>/gu,
+    (reference, body) => {
+      if ((body.match(/<c:lvl>/gu) ?? []).length !== 1) return reference;
+      return `<c:strRef>${body
+        .replace("<c:multiLvlStrCache>", "<c:strCache>")
+        .replace("</c:multiLvlStrCache>", "</c:strCache>")
+        .replace("<c:lvl>", "")
+        .replace("</c:lvl>", "")}</c:strRef>`;
+    },
+  );
+  if (!singleLevelCategories.includes("<c:barChart>")) return singleLevelCategories;
+  return singleLevelCategories.replace(/<c:ser>[\s\S]*?<\/c:ser>/gu, (series) => {
+    const labels = series.match(/<c:dLbls>[\s\S]*?<\/c:dLbls>/u)?.[0];
+    const firstPoint = series.indexOf("<c:dPt>");
+    const categories = series.indexOf("<c:cat>");
+    const labelPosition = labels ? series.indexOf(labels) : -1;
+    if (!labels || firstPoint < 0 || labelPosition > firstPoint || categories < 0) return series;
+    const withoutLabels = series.replace(labels, "");
+    const repairedCategoryPosition = withoutLabels.indexOf("<c:cat>");
+    return `${withoutLabels.slice(0, repairedCategoryPosition)}${labels}${withoutLabels.slice(repairedCategoryPosition)}`;
+  });
+}
+
+
 export async function generateDeckBlob(model) {
   const output = await buildDeck(model).write({ outputType: "blob", compression: true });
   const sourceBlob = output instanceof Blob
@@ -322,6 +348,11 @@ export async function generateDeckBlob(model) {
     (override, partName) => zip.file(partName) ? override : "",
   );
   zip.file("[Content_Types].xml", repairedContentTypes);
+  const chartNames = Object.keys(zip.files).filter((name) => /^ppt\/charts\/chart\d+\.xml$/u.test(name));
+  for (const chartName of chartNames) {
+    const chartXml = await zip.file(chartName).async("string");
+    zip.file(chartName, repairPowerPointChartXml(chartXml));
+  }
   const bytes = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
   return new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.presentationml.presentation" });
 }
